@@ -3,6 +3,7 @@ import { Router } from 'express'
 import filesRouter from './files.js'
 import chatRouter from './chat.js'
 import embeddingsRouter from './embeddings.js'
+import authRouter from './auth.js'
 
 const router = Router()
 
@@ -10,6 +11,7 @@ const router = Router()
 router.use('/api', filesRouter)
 router.use('/api', chatRouter)
 router.use('/api', embeddingsRouter)
+router.use('/api/auth', authRouter)
 
 // API health check
 router.get('/api/health', (req, res) => {
@@ -31,6 +33,8 @@ router.get('/', (req, res) => {
       chat: 'POST /api/chat',
       embeddings: 'POST /api/create-embeddings',
       search: 'POST /api/search-chunks',
+      auth: 'POST /api/auth/google',
+      user: 'GET /api/auth/user',
       health: 'GET /api/health'
     }
   })

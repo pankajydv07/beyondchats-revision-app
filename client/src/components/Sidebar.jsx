@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import PropTypes from 'prop-types'
+import UserProfileSection from './UserProfileSection'
 
 const Sidebar = ({
   chats,
@@ -256,6 +257,9 @@ const Sidebar = ({
         )}
       </div>
 
+      {/* User Profile Section */}
+      <UserProfileSection className="mt-auto" />
+      
       {/* PDF Section */}
       <div className="border-t border-gray-200 p-4">
         <div className="flex items-center justify-between mb-3">

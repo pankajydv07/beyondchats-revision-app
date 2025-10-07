@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import PropTypes from 'prop-types'
+import { Navigate } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
 import ChatWindow from './components/ChatWindow'
 import PDFViewer from './components/PDFViewer'
 import SourceSelector from './components/SourceSelector'
+import { useAuth } from './context/AuthContext'
 
 // Chat storage utility functions
 const STORAGE_KEY = 'beyondchats_data'
@@ -33,12 +35,18 @@ const generateChatTitle = (firstMessage) => {
 }
 
 function App() {
+  const { isAuthenticated, loading, user, session } = useAuth();
   const [storedData, setStoredData] = useState(getStoredData())
   const [currentChatId, setCurrentChatId] = useState(null)
   const [selectedPDF, setSelectedPDF] = useState(null)
   const [activeTab, setActiveTab] = useState('chats') // 'chats' | 'quizzes' | 'progress'
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
+  
+  // Redirect to login if not authenticated
+  if (!loading && !isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
 
   // Update localStorage whenever storedData changes
   useEffect(() => {
@@ -118,15 +126,17 @@ function App() {
 
     try {
       // Call backend API
-      const response = await fetch('http://localhost:5000/api/chat', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/chat`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
         },
         body: JSON.stringify({
           chatId: currentChatId,
           message: message,
-          pdfId: selectedPDF?.id || null
+          pdfId: selectedPDF?.id || null,
+          userId: user?.id
         })
       })
 

@@ -4,6 +4,7 @@ import cors from 'cors'
 import multer from 'multer'
 import { config, paths } from '../config/index.js'
 import fs from 'fs'
+import { requireAuth, optionalAuth } from './auth.js'
 
 // Ensure uploads directory exists
 if (!fs.existsSync(config.uploadsDir)) {
@@ -44,6 +45,9 @@ export const upload = multer({
   }
 })
 
+// Export auth middleware
+export { requireAuth, optionalAuth }
+
 /**
  * Configure Express middlewares
  */
@@ -52,6 +56,10 @@ export function configureMiddleware(app) {
   app.use(cors(corsOptions))
   app.use(express.json({ limit: '10mb' }))
   app.use(express.urlencoded({ extended: true, limit: '10mb' }))
+  
+  // Export authentication middleware
+  app.set('requireAuth', requireAuth)
+  app.set('optionalAuth', optionalAuth)
   
   // Static file serving for uploads
   app.use('/uploads', express.static(config.uploadsDir))

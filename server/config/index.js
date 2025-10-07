@@ -21,6 +21,13 @@ export const config = {
   // Supabase Configuration
   supabaseUrl: process.env.SUPABASE_URL,
   supabaseKey: process.env.SUPABASE_KEY,
+  supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY,
+  supabaseJwtSecret: process.env.SUPABASE_JWT_SECRET,
+  
+  // OAuth Configuration
+  googleClientId: process.env.GOOGLE_CLIENT_ID,
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  siteUrl: process.env.SITE_URL || 'http://localhost:5173',
   
   // Vector Search Configuration
   topKChunks: parseInt(process.env.TOP_K_CHUNKS) || 5,
