@@ -1,7 +1,8 @@
-import React, { useRef, useEffect } from 'react'
+import React, { useRef, useEffect, useState } from 'react'
 import PropTypes from 'prop-types'
 import MessageBubble from './MessageBubble'
 import ChatInput from './ChatInput'
+import EnhancedQuizRenderer from './EnhancedQuizRenderer'
 
 const ChatWindow = ({
   messages,
@@ -13,6 +14,9 @@ const ChatWindow = ({
 }) => {
   const messagesEndRef = useRef(null)
   const messagesContainerRef = useRef(null)
+  const [mode, setMode] = useState('chat') // 'chat' or 'quiz'
+  const [quiz, setQuiz] = useState(null)
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -21,6 +25,49 @@ const ChatWindow = ({
   useEffect(() => {
     scrollToBottom()
   }, [messages, isTyping])
+  
+  const generateQuiz = async () => {
+    if (!selectedPDF) {
+      return
+    }
+    
+    setIsGeneratingQuiz(true)
+    
+    try {
+      const response = await fetch('http://localhost:5000/api/generate-quiz', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fileId: selectedPDF.id,
+          textId: selectedPDF.id,
+          types: {
+            mcq: 3, // 3 multiple choice questions
+            shortAnswer: 2, // 2 short answer questions
+            longAnswer: 1  // 1 long answer question
+          }
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate quiz')
+      }
+
+      const data = await response.json()
+      setQuiz(data.quiz)
+    } catch (error) {
+      console.error('Error generating quiz:', error)
+      // Handle error state if needed
+    } finally {
+      setIsGeneratingQuiz(false)
+    }
+  }
+  
+  const handleQuizSubmit = async (results) => {
+    // This will be implemented to analyze the quiz answers
+    console.log('Quiz results submitted:', results)
+  }
 
   const EmptyState = () => (
     <div className="flex-1 flex items-center justify-center p-8">
@@ -95,54 +142,129 @@ const ChatWindow = ({
               </p>
             )}
           </div>
+
+          {/* Mode Toggle */}
           {selectedPDF && (
-            <div className="flex items-center space-x-2 text-sm text-gray-500">
-              <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-              <span>PDF loaded</span>
+            <div className="flex items-center space-x-4">
+              {/* Chat/Quiz Toggle */}
+              <div className="flex bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setMode('chat')}
+                  className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                    mode === 'chat'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Chat
+                </button>
+                <button
+                  onClick={() => setMode('quiz')}
+                  className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                    mode === 'quiz'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Quiz
+                </button>
+              </div>
+              
+              {/* PDF Status */}
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span>PDF loaded</span>
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Messages or Empty State */}
-      {messages.length === 0 ? <EmptyState /> : <MessagesArea />}
+      {/* Content Area - Show Chat or Quiz based on mode */}
+      {mode === 'chat' ? (
+        <>
+          {/* Messages or Empty State */}
+          {messages.length === 0 ? <EmptyState /> : <MessagesArea />}
 
-      {/* Input Area */}
-      <div className="border-t border-gray-200 p-4">
-        <ChatInput
-          onSendMessage={onSendMessage}
-          placeholder={placeholder}
-          disabled={disabled || isTyping}
-          isTyping={isTyping}
-        />
-        
-        {/* Status indicators */}
-        <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
-          <div className="flex items-center space-x-4">
-            {selectedPDF && (
-              <span className="flex items-center space-x-1">
-                <svg className="w-3 h-3 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-                </svg>
-                <span>PDF context enabled</span>
-              </span>
-            )}
-            {isTyping && (
-              <span className="flex items-center space-x-1 text-blue-600">
-                <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
-                <span>AI is thinking...</span>
-              </span>
-            )}
+          {/* Input Area */}
+          <div className="border-t border-gray-200 p-4">
+            <ChatInput
+              onSendMessage={onSendMessage}
+              placeholder={placeholder}
+              disabled={disabled || isTyping}
+              isTyping={isTyping}
+            />
+            
+            {/* Status indicators */}
+            <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
+              <div className="flex items-center space-x-4">
+                {selectedPDF && (
+                  <span className="flex items-center space-x-1">
+                    <svg className="w-3 h-3 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                    </svg>
+                    <span>PDF context enabled</span>
+                  </span>
+                )}
+                {isTyping && (
+                  <span className="flex items-center space-x-1 text-blue-600">
+                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+                    <span>AI is thinking...</span>
+                  </span>
+                )}
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <span>Press Enter to send</span>
+                <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-xs">⏎</kbd>
+              </div>
+            </div>
           </div>
-          
-          <div className="flex items-center space-x-2">
-            <span>Press Enter to send</span>
-            <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-xs">⏎</kbd>
-          </div>
+        </>
+      ) : (
+        /* Quiz Mode Content */
+        <div className="flex-1 overflow-y-auto p-4">
+          {!quiz ? (
+            /* Generate Quiz UI */
+            <div className="h-full flex flex-col items-center justify-center">
+              <div className="text-center max-w-md space-y-6">
+                <div>
+                  <svg className="mx-auto h-16 w-16 text-blue-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 48 48">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5l7-7 7 7M9 20h6" />
+                  </svg>
+                  <h3 className="text-xl font-semibold text-gray-900">Test Your Knowledge</h3>
+                  <p className="text-gray-600 mt-2">
+                    Generate a quiz based on this PDF to test your understanding
+                  </p>
+                </div>
+                
+                <button
+                  onClick={generateQuiz}
+                  disabled={isGeneratingQuiz}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                >
+                  {isGeneratingQuiz ? (
+                    <div className="flex items-center space-x-2">
+                      <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
+                      <span>Generating Quiz...</span>
+                    </div>
+                  ) : (
+                    'Generate Quiz'
+                  )}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <EnhancedQuizRenderer 
+              quiz={quiz} 
+              onComplete={handleQuizSubmit} 
+            />
+          )}
         </div>
-      </div>
+      )}
+      
     </div>
   )
 }

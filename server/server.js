@@ -24,6 +24,8 @@ app.use('*', (req, res) => {
       upload: 'POST /api/upload',
       extractText: 'POST /api/extract-text', 
       chat: 'POST /api/chat',
+      generateQuiz: 'POST /api/generate-quiz',
+      analyzeQuiz: 'POST /api/analyze-quiz',
       embeddings: 'POST /api/create-embeddings',
       search: 'POST /api/search-chunks',
       health: 'GET /api/health'
@@ -74,6 +76,7 @@ async function startServer() {
         console.log(`   Health: http://localhost:${config.port}/api/health`)
         console.log(`   Upload: POST http://localhost:${config.port}/api/upload`)
         console.log(`   Chat: POST http://localhost:${config.port}/api/chat`)
+        console.log(`   Quiz: POST http://localhost:${config.port}/api/generate-quiz`)
         console.log('   📚 Full API docs at: http://localhost:' + config.port)
       }
     })

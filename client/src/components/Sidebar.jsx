@@ -43,7 +43,6 @@ const Sidebar = ({
 
   const tabs = [
     { id: 'chats', label: 'Chats', icon: '💬', count: chats.length },
-    { id: 'quizzes', label: 'Quizzes', icon: '📝', count: quizzes.length },
     { id: 'progress', label: 'Progress', icon: '📊', count: null }
   ]
 
@@ -170,44 +169,7 @@ const Sidebar = ({
           </div>
         )}
 
-        {/* Quizzes Tab */}
-        {activeTab === 'quizzes' && (
-          <div className="p-4">
-            {quizzes.length === 0 ? (
-              <div className="text-center py-12">
-                <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 48 48">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5l7-7 7 7M9 20h6" />
-                </svg>
-                <p className="text-gray-500 font-medium">No quizzes yet</p>
-                <p className="text-sm text-gray-400 mt-1">Take your first quiz to see results here</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {quizzes.map((quiz) => (
-                  <div key={quiz.id} className="p-4 bg-gray-50 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-medium text-gray-900">{quiz.title}</h4>
-                        <p className="text-sm text-gray-500">{formatDate(quiz.completedAt)}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className={`text-lg font-bold ${
-                          quiz.score >= 80 ? 'text-green-600' : 
-                          quiz.score >= 60 ? 'text-yellow-600' : 'text-red-600'
-                        }`}>
-                          {quiz.score}%
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {quiz.correct}/{quiz.total}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        {/* Quiz tab removed */}
 
         {/* Progress Tab */}
         {activeTab === 'progress' && (
