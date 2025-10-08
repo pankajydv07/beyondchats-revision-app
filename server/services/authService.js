@@ -95,9 +95,9 @@ export const authService = {
     
     try {
       const { data, error } = await supabase
-        .from('user_profiles')
+        .from('users')
         .select('*')
-        .eq('user_id', userId)
+        .eq('id', userId)
         .single();
       
       if (error) {
@@ -118,14 +118,14 @@ export const authService = {
    * @returns {Object} - Success or error
    */
   async upsertUserProfile(profile) {
-    if (!profile?.user_id) {
+    if (!profile?.id) {
       return { success: false, error: 'No user ID provided' };
     }
     
     try {
       const { data, error } = await supabase
-        .from('user_profiles')
-        .upsert([profile], { onConflict: 'user_id', returning: 'minimal' });
+        .from('users')
+        .upsert([profile], { onConflict: 'id', returning: 'minimal' });
       
       if (error) {
         return { success: false, error: error.message };

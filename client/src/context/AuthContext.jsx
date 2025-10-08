@@ -56,6 +56,54 @@ export function AuthProvider({ children }) {
     };
   }, []);
   
+  // Function to register user with our backend
+  const registerUserWithBackend = async (user, accessToken) => {
+    try {
+      const response = await fetch('/api/auth/register-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({ user })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to register user with backend');
+      }
+      
+      const result = await response.json();
+      console.log('User registered with backend:', result);
+      return result;
+    } catch (error) {
+      console.error('Error registering user with backend:', error);
+      return null;
+    }
+  };
+  
+  // Subscribe to auth changes
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+        
+        // If user just signed in, register them with our backend
+        if (event === 'SIGNED_IN' && session?.user && session?.access_token) {
+          await registerUserWithBackend(session.user, session.access_token);
+        }
+      }
+    );
+    
+    // Cleanup subscription
+    return () => {
+      if (authListener && authListener.subscription) {
+        authListener.subscription.unsubscribe();
+      }
+    };
+  }, []);
+  
   // Sign in with Google
   const signInWithGoogle = async () => {
     try {

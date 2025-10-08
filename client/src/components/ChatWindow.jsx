@@ -8,6 +8,7 @@ const ChatWindow = ({
   messages,
   isTyping,
   onSendMessage,
+  onQuizSubmit,
   placeholder = "Ask a question about your course materials...",
   selectedPDF = null,
   disabled = false
@@ -65,8 +66,10 @@ const ChatWindow = ({
   }
   
   const handleQuizSubmit = async (results) => {
-    // This will be implemented to analyze the quiz answers
     console.log('Quiz results submitted:', results)
+    if (onQuizSubmit) {
+      await onQuizSubmit(results)
+    }
   }
 
   const EmptyState = () => (
@@ -279,6 +282,7 @@ ChatWindow.propTypes = {
   })).isRequired,
   isTyping: PropTypes.bool.isRequired,
   onSendMessage: PropTypes.func.isRequired,
+  onQuizSubmit: PropTypes.func,
   placeholder: PropTypes.string,
   selectedPDF: PropTypes.shape({
     id: PropTypes.string.isRequired,

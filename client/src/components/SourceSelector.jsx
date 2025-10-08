@@ -1,33 +1,43 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import PropTypes from 'prop-types'
+import { useAuth } from '../context/AuthContext'
 
 const SourceSelector = ({ onFileSelect }) => {
+  const { user, session } = useAuth()
   const [uploadedPDFs, setUploadedPDFs] = useState([])
   const [selectedSource, setSelectedSource] = useState('upload') // 'upload' | 'existing'
   const [loading, setLoading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [processingStatus, setProcessingStatus] = useState('')
   const [error, setError] = useState('')
 
   // Load uploaded PDFs from server
   const loadUploadedPDFs = useCallback(async () => {
+    if (!user?.id || !session?.access_token) return
+
     try {
       setLoading(true)
-      // Placeholder - replace with actual API call
-      const response = await fetch('http://localhost:5000/api/list-pdfs')
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/pdfs?userId=${user.id}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      
       if (response.ok) {
         const data = await response.json()
         setUploadedPDFs(data.pdfs || [])
+      } else {
+        // Fallback for development
+        setUploadedPDFs([])
       }
     } catch (err) {
       console.error('Error loading PDFs:', err)
-      // Mock data for demo
-      setUploadedPDFs([
-        { id: '1', name: 'Sample Document 1.pdf', uploadedAt: '2024-01-01' },
-        { id: '2', name: 'Study Material.pdf', uploadedAt: '2024-01-02' }
-      ])
+      setUploadedPDFs([])
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [user?.id, session?.access_token])
 
   useEffect(() => {
     loadUploadedPDFs()
@@ -44,41 +54,65 @@ const SourceSelector = ({ onFileSelect }) => {
       return
     }
 
+    if (!user?.id || !session?.access_token) {
+      setError('Please log in to upload files')
+      return
+    }
+
     setLoading(true)
     setError('')
+    setUploadProgress(0)
+    setProcessingStatus('Uploading...')
 
     try {
       const formData = new FormData()
       formData.append('pdf', file)
+      formData.append('userId', user.id)
 
-      const response = await fetch('http://localhost:5000/api/upload-pdf', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/upload-pdf`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        },
         body: formData
       })
 
       if (!response.ok) {
-        throw new Error('Upload failed')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Upload failed')
       }
 
       const result = await response.json()
+      setUploadProgress(100)
+      setProcessingStatus('Processing PDF...')
       
       // Create file object with URL for PDF viewer
       const fileWithUrl = {
         ...file,
         id: result.fileId,
         url: URL.createObjectURL(file),
-        uploadedAt: new Date().toISOString()
+        uploadedAt: new Date().toISOString(),
+        status: result.status
       }
 
       onFileSelect(fileWithUrl)
-      await loadUploadedPDFs() // Refresh the list
+      setProcessingStatus('PDF uploaded successfully!')
+      
+      // Refresh the list after a short delay
+      setTimeout(() => {
+        loadUploadedPDFs()
+        setProcessingStatus('')
+      }, 2000)
+
     } catch (err) {
       console.error('Upload error:', err)
-      setError('Failed to upload PDF. Please try again.')
+      setError(err.message || 'Failed to upload PDF. Please try again.')
+      setUploadProgress(0)
+      setProcessingStatus('')
     } finally {
       setLoading(false)
     }
-  }, [onFileSelect, loadUploadedPDFs])
+  }, [onFileSelect, loadUploadedPDFs, user?.id, session?.access_token])
 
   const handleFileChange = useCallback((event) => {
     const file = event.target.files[0]
@@ -197,6 +231,28 @@ const SourceSelector = ({ onFileSelect }) => {
             >
               {loading ? 'Uploading...' : 'Select PDF File'}
             </label>
+
+            {/* Progress indicators */}
+            {loading && uploadProgress > 0 && (
+              <div className="mt-4 w-full max-w-md mx-auto">
+                <div className="flex justify-between text-sm text-gray-600 mb-1">
+                  <span>Upload Progress</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
+
+            {processingStatus && (
+              <div className="mt-3 text-center">
+                <p className="text-sm text-blue-600 font-medium">{processingStatus}</p>
+              </div>
+            )}
           </div>
         </div>
       ) : (

@@ -29,11 +29,10 @@ router.post('/google', async (req, res) => {
     if (!userProfile) {
       // Create basic profile for new users
       const newProfile = {
-        user_id: result.user.id,
+        id: result.user.id,
         email: result.user.email,
-        display_name: result.user.user_metadata?.full_name || result.user.email.split('@')[0],
-        avatar_url: result.user.user_metadata?.avatar_url || null,
-        created_at: new Date().toISOString()
+        full_name: result.user.user_metadata?.full_name || result.user.email.split('@')[0],
+        avatar_url: result.user.user_metadata?.avatar_url || null
       };
       
       await authService.upsertUserProfile(newProfile);
@@ -128,6 +127,47 @@ router.put('/profile', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Update profile error:', error);
     res.status(500).json({ error: 'Failed to update user profile' });
+  }
+});
+
+/**
+ * Register/update user after OAuth sign-in
+ * @route POST /api/auth/register-user
+ */
+router.post('/register-user', requireAuth, async (req, res) => {
+  try {
+    const { user } = req.body;
+    
+    if (!user || !user.id) {
+      return res.status(400).json({ error: 'User data is required' });
+    }
+    
+    // Check if user already exists
+    let userProfile = await authService.getUserProfile(user.id);
+    
+    if (!userProfile) {
+      // Create user profile in our database
+      const newProfile = {
+        id: user.id,
+        email: user.email,
+        full_name: user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0],
+        avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null
+      };
+      
+      const result = await authService.upsertUserProfile(newProfile);
+      
+      if (!result.success) {
+        console.error('Error creating user profile:', result.error);
+        return res.status(500).json({ error: 'Failed to create user profile' });
+      }
+      
+      res.json({ success: true, created: true, user: newProfile });
+    } else {
+      res.json({ success: true, created: false, user: userProfile });
+    }
+  } catch (error) {
+    console.error('Register user error:', error);
+    res.status(500).json({ error: 'User registration failed' });
   }
 });
 

@@ -6,6 +6,10 @@ import { config } from '../config/index.js'
 import { safeParsePDF, checkFileExists } from '../services/pdfService.js'
 import { processPDFForEmbeddings } from '../utils/textChunking.js'
 import { generateEmbeddingsBatch, storePDFChunks } from '../embeddings.js'
+import { requireAuth } from '../middleware/auth.js'
+import { supabase } from '../supabaseClient.js'
+import fs from 'fs'
+import { v4 as uuidv4 } from 'uuid'
 
 const router = Router()
 
@@ -31,6 +35,291 @@ router.post('/upload', upload.single('pdf'), async (req, res) => {
   } catch (error) {
     console.error('Upload error:', error)
     res.status(500).json({ error: 'Failed to upload file' })
+  }
+})
+
+/**
+ * Upload PDF to Supabase storage and store metadata
+ */
+router.post('/upload-pdf', requireAuth, upload.single('pdf'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'No file uploaded' 
+      })
+    }
+
+    const { userId } = req.body
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID is required'
+      })
+    }
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(userId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid user ID format'
+      })
+    }
+
+    const fileId = uuidv4()
+    const fileName = req.file.originalname
+    const filePath = req.file.path
+    const fileSize = req.file.size
+
+    console.log('📄 Processing PDF upload:', fileName)
+
+    // Read file buffer
+    const fileBuffer = fs.readFileSync(filePath)
+
+    // Upload to Supabase storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('pdfs')
+      .upload(`${userId}/${fileId}.pdf`, fileBuffer, {
+        contentType: 'application/pdf',
+        upsert: false
+      })
+
+    if (uploadError) {
+      console.error('Supabase upload error:', uploadError)
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to upload PDF to storage'
+      })
+    }
+
+    // Store PDF metadata in database
+    const { data: pdfFile, error: dbError } = await supabase
+      .from('pdf_files')
+      .insert([{
+        id: fileId,
+        user_id: userId,
+        file_name: fileName,
+        original_name: fileName,
+        file_url: uploadData.path,
+        file_size: fileSize,
+        created_at: new Date().toISOString(),
+        processing_status: 'processing'
+      }])
+      .select()
+      .single()
+
+    if (dbError) {
+      console.error('Database error:', dbError)
+      // Try to clean up uploaded file
+      await supabase.storage.from('pdfs').remove([uploadData.path])
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to store PDF metadata'
+      })
+    }
+
+    // Start background processing for text extraction and embeddings
+    // Don't clean up local file yet - pass it to background processing
+    processUploadedPDF(fileId, userId, filePath, uploadData.path)
+      .finally(() => {
+        // Clean up local file after processing is complete
+        try {
+          fs.unlinkSync(filePath)
+        } catch (cleanupError) {
+          console.warn('Failed to clean up local file after processing:', cleanupError)
+        }
+      })
+      .catch(error => {
+        console.error('Background PDF processing failed:', error)
+        // Update status to failed
+        supabase
+          .from('pdf_files')
+          .update({ processing_status: 'failed' })
+          .eq('id', fileId)
+          .then(() => console.log('Updated PDF status to failed'))
+      })
+
+    res.json({
+      success: true,
+      fileId,
+      filename: fileName,
+      size: fileSize,
+      status: 'processing',
+      message: 'PDF uploaded successfully. Processing in background.'
+    })
+
+  } catch (error) {
+    console.error('Upload PDF endpoint error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    })
+  }
+})
+
+/**
+ * Background function to process uploaded PDF
+ */
+async function processUploadedPDF(fileId, userId, localPath, storagePath) {
+  try {
+    console.log('🔄 Starting background processing for PDF:', fileId)
+
+    // Extract text from PDF (using existing pdfService)
+    const pdfData = await safeParsePDF(localPath)
+    if (!pdfData || !pdfData.text) {
+      throw new Error('Failed to extract text from PDF')
+    }
+
+    // Update PDF file with extracted text
+    await supabase
+      .from('pdf_files')
+      .update({ 
+        total_pages: pdfData.pageCount || 1,
+        processing_status: 'processing'
+      })
+      .eq('id', fileId)
+
+    // Process text into chunks
+    const pdfDataForChunking = {
+      text: pdfData.text,
+      numpages: pdfData.pageCount || 1
+    }
+    
+    console.log('🔍 PDF data for chunking:', {
+      textLength: pdfDataForChunking.text?.length,
+      pages: pdfDataForChunking.numpages,
+      hasText: !!pdfDataForChunking.text
+    })
+    
+    const processedResult = await processPDFForEmbeddings(pdfDataForChunking, { fileId })
+    
+    console.log('📊 Processed result:', {
+      hasChunks: !!processedResult.chunks,
+      chunksType: typeof processedResult.chunks,
+      chunksLength: processedResult.chunks?.length,
+      metadata: processedResult.metadata
+    })
+    
+    const chunks = processedResult.chunks
+    
+    if (!chunks || !Array.isArray(chunks)) {
+      throw new Error(`Invalid chunks result: expected array, got ${typeof chunks}`)
+    }
+    
+    console.log(`📄 Created ${chunks.length} chunks for PDF ${fileId}`)
+
+    if (chunks.length === 0) {
+      throw new Error('No chunks were created from PDF text')
+    }
+
+    // Generate embeddings for chunks
+    const textsToEmbed = chunks.map(chunk => chunk.text)
+    const embeddings = await generateEmbeddingsBatch(textsToEmbed)
+
+    if (embeddings.length !== chunks.length) {
+      throw new Error('Mismatch between chunks and embeddings count')
+    }
+
+    // Store chunks with embeddings in database
+    const chunksWithEmbeddings = chunks.map((chunk, index) => ({
+      id: uuidv4(),
+      pdf_id: fileId,
+      user_id: userId,
+      page: chunk.page || 1, // Default to page 1 if not provided
+      chunk_index: chunk.chunkIndex,
+      text: chunk.text,
+      embedding: JSON.stringify(embeddings[index]),
+      metadata: JSON.stringify({
+        start_char: chunk.startChar,
+        end_char: chunk.endChar,
+        word_count: chunk.text.split(' ').length
+      })
+    }))
+
+    const { error: chunksError } = await supabase
+      .from('pdf_chunks')
+      .insert(chunksWithEmbeddings)
+
+    if (chunksError) {
+      console.error('Error storing chunks:', chunksError)
+      throw chunksError
+    }
+
+    // Update PDF status to completed
+    await supabase
+      .from('pdf_files')
+      .update({ 
+        processing_status: 'completed',
+        processed_at: new Date().toISOString(),
+        total_chunks: chunksWithEmbeddings.length
+      })
+      .eq('id', fileId)
+
+    console.log('✅ PDF processing completed successfully for:', fileId)
+
+  } catch (error) {
+    console.error('❌ PDF processing failed:', error)
+    
+    // Update status to failed
+    await supabase
+      .from('pdf_files')
+      .update({ processing_status: 'failed' })
+      .eq('id', fileId)
+    
+    throw error
+  }
+}
+
+/**
+ * Get user's PDF files
+ */
+router.get('/pdfs', requireAuth, async (req, res) => {
+  try {
+    const { userId } = req.query
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID is required'
+      })
+    }
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(userId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid user ID format'
+      })
+    }
+
+    // Fetch user's PDF files
+    const { data: pdfs, error } = await supabase
+      .from('pdf_files')
+      .select('id, file_name, original_name, file_size, processing_status, total_pages, created_at, processed_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Database error:', error)
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch PDF files'
+      })
+    }
+
+    res.json({
+      success: true,
+      pdfs: pdfs || []
+    })
+
+  } catch (error) {
+    console.error('Get PDFs endpoint error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    })
   }
 })
 

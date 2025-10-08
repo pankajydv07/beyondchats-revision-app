@@ -5,6 +5,8 @@ import chatRouter from './chat.js'
 import embeddingsRouter from './embeddings.js'
 import authRouter from './auth.js'
 import quizRouter from './quiz.js'
+import usersRouter from './users.js'
+import attemptsRouter from './attempts.js'
 
 const router = Router()
 
@@ -13,6 +15,8 @@ router.use('/api', filesRouter)
 router.use('/api', chatRouter)
 router.use('/api', embeddingsRouter)
 router.use('/api', quizRouter)
+router.use('/api', usersRouter)
+router.use('/api/attempts', attemptsRouter)
 router.use('/api/auth', authRouter)
 
 // API health check
@@ -39,6 +43,11 @@ router.get('/', (req, res) => {
       analyzeQuiz: 'POST /api/analyze-quiz',
       saveAttempt: 'POST /api/save-attempt',
       quizAttempts: 'GET /api/quiz-attempts/:fileId',
+      users: {
+        create: 'POST /api/users',
+        get: 'GET /api/users/:id',
+        update: 'PUT /api/users/:id'
+      },
       auth: 'POST /api/auth/google',
       user: 'GET /api/auth/user',
       health: 'GET /api/health'

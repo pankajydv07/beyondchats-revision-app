@@ -28,6 +28,7 @@ app.use('*', (req, res) => {
       analyzeQuiz: 'POST /api/analyze-quiz',
       embeddings: 'POST /api/create-embeddings',
       search: 'POST /api/search-chunks',
+      users: 'POST /api/users, GET /api/users/:id, PUT /api/users/:id',
       health: 'GET /api/health'
     }
   })
