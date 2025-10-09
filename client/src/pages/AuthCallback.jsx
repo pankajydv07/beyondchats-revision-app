@@ -1,54 +1,82 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
 
 const AuthCallback = () => {
   const navigate = useNavigate();
+  const [errorMessage, setErrorMessage] = useState(null);
   
   useEffect(() => {
-    // Handle the OAuth callback
     const handleAuthCallback = async () => {
       try {
-        // Get the URL hash and convert it to URLSearchParams
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        console.log('Auth callback initiated - processing login');
         
-        // If we have an access token, the sign in was successful
-        // This will update the auth state through the onAuthStateChange listener in AuthContext
-        if (hashParams.get('access_token')) {
-          // Redirect to home page after a short delay
-          setTimeout(() => {
-            navigate('/', { replace: true });
-          }, 1000);
-        } else {
-          // Check for errors
-          const errorDescription = hashParams.get('error_description');
-          if (errorDescription) {
-            console.error('Authentication error:', errorDescription);
-            navigate('/login', { 
-              replace: true, 
-              state: { error: 'Authentication failed. Please try again.' } 
-            });
-          } else {
-            // Fall back to using Supabase's getSession API if we don't have hash params
-            const { data, error } = await supabase.auth.getSession();
+        // Debug info
+        const hashExists = !!window.location.hash;
+        const hashLength = window.location.hash.length;
+        const queryParamsExist = window.location.search.length > 1;
+        
+        console.log('Auth callback debug info:', {
+          hashExists,
+          hashLength,
+          hash: hashExists ? window.location.hash.substring(0, 15) + '...' : '...',
+          queryParamsExist,
+          url: window.location.href
+        });
+        
+        if (hashExists) {
+          console.log('Found access_token in URL fragment, processing directly');
+          // For Supabase v2.x+, we use setSession instead of getSessionFromUrl
+          try {
+            // Extract the access token from the URL fragment
+            const hashParams = new URLSearchParams(window.location.hash.substring(1));
+            const accessToken = hashParams.get('access_token');
+            const refreshToken = hashParams.get('refresh_token');
             
-            if (error) {
-              throw error;
+            if (accessToken) {
+              // Use the newer API method for setting the session
+              const { error } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken || ''
+              });
+              
+              if (error) {
+                throw error;
+              }
+              
+              console.log('Session set successfully, redirecting to dashboard');
+              navigate('/dashboard', { replace: true });
+              return;
             }
-            
-            if (data?.session) {
-              navigate('/', { replace: true });
-            } else {
-              navigate('/login', { replace: true });
-            }
+          } catch (error) {
+            console.log('Error processing hash:', error);
+            // Continue to the next approach if this fails
           }
+        }
+        
+        // If we reach here, try to get the existing session as a fallback
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          throw error;
+        }
+        
+        if (data?.session) {
+          console.log('Using existing session, redirecting to dashboard');
+          navigate('/dashboard', { replace: true });
+        } else {
+          console.log('No session found, redirecting to login');
+          navigate('/login', { replace: true });
         }
       } catch (error) {
         console.error('Error in auth callback:', error);
-        navigate('/login', { 
-          replace: true, 
-          state: { error: 'Something went wrong during authentication.' } 
-        });
+        setErrorMessage('Authentication failed. Please try again.');
+        setTimeout(() => {
+          navigate('/login', { 
+            replace: true, 
+            state: { error: 'Something went wrong during authentication.' } 
+          });
+        }, 1500);
       }
     };
     
@@ -61,6 +89,9 @@ const AuthCallback = () => {
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
         <h2 className="text-xl font-medium text-gray-900">Completing sign in...</h2>
         <p className="text-gray-600 mt-2">Please wait while we log you in</p>
+        {errorMessage && (
+          <p className="text-red-600 mt-4">{errorMessage}</p>
+        )}
       </div>
     </div>
   );
