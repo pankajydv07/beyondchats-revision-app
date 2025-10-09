@@ -495,7 +495,27 @@ function ChatPage() {
     }
   }, [user?.id, session?.access_token, selectedPDF?.id])
 
-  const deleteChat = useCallback((chatId) => {
+  const deleteChat = useCallback(async (chatId) => {
+    try {
+      // Delete from database first
+      if (user?.id && session?.access_token) {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/chat/${chatId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+
+        if (!response.ok) {
+          console.warn('Failed to delete chat from database')
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting chat from database:', error)
+    }
+
+    // Remove from local state
     setStoredData(prev => ({
       ...prev,
       chats: prev.chats.filter(chat => chat.id !== chatId)
@@ -504,7 +524,43 @@ function ChatPage() {
     if (currentChatId === chatId) {
       setCurrentChatId(null)
     }
-  }, [currentChatId])
+  }, [currentChatId, user?.id, session?.access_token])
+
+  const deletePDF = useCallback(async (pdfId) => {
+    try {
+      // Delete from database first
+      if (user?.id && session?.access_token) {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/pdf/${pdfId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+
+        if (!response.ok) {
+          console.warn('Failed to delete PDF from database')
+          return false
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting PDF from database:', error)
+      return false
+    }
+
+    // Remove from local state
+    setStoredData(prev => ({
+      ...prev,
+      pdfs: prev.pdfs.filter(pdf => pdf.id !== pdfId)
+    }))
+
+    // If this PDF was selected, unselect it
+    if (selectedPDF?.id === pdfId) {
+      setSelectedPDF(null)
+    }
+
+    return true
+  }, [user?.id, session?.access_token, selectedPDF?.id])
 
   const handleFileSelect = useCallback((file) => {
     // Add to PDFs list
@@ -524,12 +580,23 @@ function ChatPage() {
       pdfs: [pdfData, ...prev.pdfs.filter(pdf => pdf.id !== pdfData.id)]
     }))
 
-    // Note: Removed automatic PDF selection - users must explicitly select PDFs
+    // Automatically select the newly uploaded/selected PDF
+    setSelectedPDF(pdfData)
     setShowUploadModal(false)
-  }, [])
+    
+    // Refresh the PDFs list from the database after a short delay
+    // to ensure the latest data is displayed
+    setTimeout(() => {
+      loadPDFs()
+    }, 1000)
+  }, [loadPDFs])
 
   const selectPDF = useCallback((pdf) => {
     setSelectedPDF(pdf)
+  }, [])
+
+  const unselectPDF = useCallback(() => {
+    setSelectedPDF(null)
   }, [])
 
   const currentChat = currentChatId 
@@ -544,7 +611,6 @@ function ChatPage() {
           chats={storedData.chats}
           pdfs={storedData.pdfs}
           quizzes={storedData.quizzes}
-          progress={storedData.progress}
           activeTab={activeTab}
           currentChatId={currentChatId}
           selectedPDF={selectedPDF}
@@ -554,6 +620,7 @@ function ChatPage() {
           onDeleteChat={deleteChat}
           onPDFSelect={selectPDF}
           onUploadPDF={() => setShowUploadModal(true)}
+          onPDFDelete={deletePDF}
         />
       </div>
 
@@ -591,7 +658,7 @@ function ChatPage() {
         
         <div className="flex-1">
           {selectedPDF ? (
-            <PDFViewer file={selectedPDF} />
+            <PDFViewer file={selectedPDF} onUnselect={unselectPDF} />
           ) : (
             <div className="flex items-center justify-center h-full text-gray-500">
               <div className="text-center">

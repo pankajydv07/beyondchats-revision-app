@@ -9,7 +9,7 @@ import 'react-pdf/dist/esm/Page/TextLayer.css'
 // Set up PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`
 
-const PDFViewer = ({ file }) => {
+const PDFViewer = ({ file, onUnselect }) => {
   const { session } = useAuth()
   const [numPages, setNumPages] = useState(null)
   const [pageNumber, setPageNumber] = useState(1)
@@ -158,6 +158,21 @@ const PDFViewer = ({ file }) => {
       {/* Toolbar */}
       <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
         <div className="flex items-center justify-between">
+          {/* Close Button */}
+          <div className="flex items-center">
+            {onUnselect && (
+              <button
+                onClick={onUnselect}
+                className="p-2 rounded-md text-gray-600 hover:bg-gray-200 hover:text-red-600 transition-colors"
+                title="Close PDF"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+
           {/* Navigation Controls */}
           <div className="flex items-center space-x-3">
             <button
@@ -324,7 +339,8 @@ PDFViewer.propTypes = {
     name: PropTypes.string,
     url: PropTypes.string,
     size: PropTypes.number
-  })
+  }),
+  onUnselect: PropTypes.func
 }
 
 export default PDFViewer

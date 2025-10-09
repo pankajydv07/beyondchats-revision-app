@@ -6,7 +6,6 @@ const Sidebar = ({
   chats,
   pdfs,
   quizzes,
-  progress,
   activeTab,
   currentChatId,
   selectedPDF,
@@ -15,9 +14,11 @@ const Sidebar = ({
   onNewChat,
   onDeleteChat,
   onPDFSelect,
-  onUploadPDF
+  onUploadPDF,
+  onPDFDelete
 }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null)
+  const [showPDFDeleteConfirm, setShowPDFDeleteConfirm] = useState(null)
 
   const formatDate = (dateString) => {
     const date = new Date(dateString)
@@ -41,9 +42,18 @@ const Sidebar = ({
     setShowDeleteConfirm(null)
   }
 
+  const handlePDFDeleteClick = (e, pdfId) => {
+    e.stopPropagation()
+    setShowPDFDeleteConfirm(pdfId)
+  }
+
+  const confirmPDFDelete = (pdfId) => {
+    onPDFDelete(pdfId)
+    setShowPDFDeleteConfirm(null)
+  }
+
   const tabs = [
-    { id: 'chats', label: 'Chats', icon: '💬', count: chats.length },
-    { id: 'progress', label: 'Progress', icon: '📊', count: null }
+    { id: 'chats', label: 'Chats', icon: '💬', count: chats.length }
   ]
 
   return (
@@ -170,53 +180,6 @@ const Sidebar = ({
         )}
 
         {/* Quiz tab removed */}
-
-        {/* Progress Tab */}
-        {activeTab === 'progress' && (
-          <div className="p-4 space-y-6">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Learning Progress</h3>
-              
-              {/* Overall Progress */}
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 mb-6">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium text-gray-900">Overall</h4>
-                  <span className="text-lg font-bold text-blue-600">
-                    {progress.overall || 0}%
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${progress.overall || 0}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <p className="text-2xl font-bold text-gray-900">{chats.length}</p>
-                  <p className="text-sm text-gray-600">Chats</p>
-                </div>
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <p className="text-2xl font-bold text-gray-900">{quizzes.length}</p>
-                  <p className="text-sm text-gray-600">Quizzes</p>
-                </div>
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <p className="text-2xl font-bold text-gray-900">{pdfs.length}</p>
-                  <p className="text-sm text-gray-600">PDFs</p>
-                </div>
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <p className="text-2xl font-bold text-gray-900">
-                    {quizzes.length > 0 ? Math.round(quizzes.reduce((acc, q) => acc + q.score, 0) / quizzes.length) : 0}%
-                  </p>
-                  <p className="text-sm text-gray-600">Avg Score</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* User Profile Section */}
@@ -243,7 +206,7 @@ const Sidebar = ({
             {pdfs.slice(0, 3).map((pdf) => (
               <div
                 key={pdf.id}
-                className={`flex items-center space-x-3 p-2 rounded-md cursor-pointer transition-colors ${
+                className={`flex items-center space-x-3 p-2 rounded-md cursor-pointer transition-colors group ${
                   selectedPDF?.id === pdf.id
                     ? 'bg-blue-50 border border-blue-200'
                     : 'hover:bg-gray-50'
@@ -261,6 +224,15 @@ const Sidebar = ({
                     {formatDate(pdf.created_at || pdf.uploadedAt)}
                   </p>
                 </div>
+                <button
+                  onClick={(e) => handlePDFDeleteClick(e, pdf.id)}
+                  className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-600 transition-all"
+                  title="Delete PDF"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
               </div>
             ))}
             {pdfs.length > 3 && (
@@ -275,7 +247,7 @@ const Sidebar = ({
         )}
       </div>
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Chat Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm mx-4">
@@ -300,6 +272,32 @@ const Sidebar = ({
           </div>
         </div>
       )}
+
+      {/* Delete PDF Confirmation Modal */}
+      {showPDFDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete PDF</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete "{showPDFDeleteConfirm.original_filename}"? This action cannot be undone.
+            </p>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowPDFDeleteConfirm(null)}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => confirmPDFDelete(showPDFDeleteConfirm)}
+                className="flex-1 px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -308,7 +306,6 @@ Sidebar.propTypes = {
   chats: PropTypes.array.isRequired,
   pdfs: PropTypes.array.isRequired,
   quizzes: PropTypes.array.isRequired,
-  progress: PropTypes.object.isRequired,
   activeTab: PropTypes.string.isRequired,
   currentChatId: PropTypes.string,
   selectedPDF: PropTypes.object,
@@ -317,7 +314,8 @@ Sidebar.propTypes = {
   onNewChat: PropTypes.func.isRequired,
   onDeleteChat: PropTypes.func.isRequired,
   onPDFSelect: PropTypes.func.isRequired,
-  onUploadPDF: PropTypes.func.isRequired
+  onUploadPDF: PropTypes.func.isRequired,
+  onPDFDelete: PropTypes.func.isRequired
 }
 
 export default Sidebar
