@@ -102,7 +102,41 @@ function findSentenceBreak(text, start, end) {
 }
 
 /**
+ * Estimate page count from text content
+ */
+function estimatePageCountFromText(text) {
+  if (!text || typeof text !== 'string') {
+    return 1;
+  }
+
+  // Look for form feed characters (page breaks)
+  const formFeeds = (text.match(/\f/g) || []).length;
+  if (formFeeds > 0) {
+    return formFeeds + 1;
+  }
+
+  // Look for "Page X" patterns
+  const pagePatterns = text.match(/(?:^|\n)\s*(?:Page\s+|p\.?\s*)(\d+)/gi);
+  if (pagePatterns && pagePatterns.length > 0) {
+    const pageNumbers = pagePatterns.map(match => {
+      const num = match.match(/(\d+)/);
+      return num ? parseInt(num[1]) : 0;
+    });
+    const maxPage = Math.max(...pageNumbers);
+    if (maxPage > 1 && maxPage < 1000) {
+      return maxPage;
+    }
+  }
+
+  // Fallback: estimate based on text length
+  const avgCharsPerPage = 2500;
+  const estimatedPages = Math.ceil(text.length / avgCharsPerPage);
+  return Math.max(1, Math.min(estimatedPages, 200));
+}
+
+/**
  * Extract text chunks with page information from PDF data
+ * Enhanced with better page number estimation
  */
 function extractPDFChunks(pdfData, options = {}) {
   const {
@@ -117,9 +151,16 @@ function extractPDFChunks(pdfData, options = {}) {
     return chunks;
   }
 
-  // If we don't have page info, treat as single page
-  if (!pdfData.numpages) {
-    const textChunks = splitTextIntoChunks(pdfData.text, {
+  // Use numpages or pageCount, defaulting to estimated page count
+  const totalPages = pdfData.numpages || pdfData.pageCount || estimatePageCountFromText(pdfData.text);
+  const totalText = pdfData.text;
+  const textLength = totalText.length;
+  
+  console.log(`📄 Processing PDF with ${totalPages} pages, ${textLength} characters`);
+
+  // If we only have one page, treat as single page
+  if (totalPages <= 1) {
+    const textChunks = splitTextIntoChunks(totalText, {
       maxChunkSize: chunkSize,
       overlapSize: overlap
     });
@@ -129,34 +170,134 @@ function extractPDFChunks(pdfData, options = {}) {
       page: 1,
       chunkIndex: index,
       startChar: 0,
-      endChar: text.length
+      endChar: text.length,
+      metadata: {
+        estimationMethod: 'single_page',
+        confidence: 'high'
+      }
     }));
   }
 
-  // For PDFs with multiple pages, try to extract page-wise if possible
-  // Note: pdf-parse doesn't provide per-page text extraction by default
-  // This is a simplified approach - for better page detection, 
-  // consider using pdf2pic + OCR or more advanced PDF libraries
+  // Enhanced page estimation using multiple heuristics
+  const pageBreakPatterns = [
+    /\f/g,                    // Form feed character (page break)
+    /\n\s*Page\s+\d+/gi,     // "Page X" patterns
+    /\n\s*\d+\s*\n/g         // Standalone numbers (potential page numbers)
+  ];
   
-  const textChunks = splitTextIntoChunks(pdfData.text, {
+  // Find potential page boundaries
+  let pageBreakPositions = [0]; // Start of document
+  
+  pageBreakPatterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.exec(totalText)) !== null) {
+      pageBreakPositions.push(match.index);
+    }
+  });
+  
+  // Add end of document
+  pageBreakPositions.push(textLength);
+  
+  // Remove duplicates and sort
+  pageBreakPositions = [...new Set(pageBreakPositions)].sort((a, b) => a - b);
+  
+  // If we found meaningful page breaks, use them; otherwise fall back to estimation
+  let pageRanges = [];
+  const hasGoodPageBreaks = pageBreakPositions.length > 2 && pageBreakPositions.length <= totalPages + 2;
+  
+  if (hasGoodPageBreaks) {
+    // Use detected page breaks
+    console.log(`📍 Using ${pageBreakPositions.length - 1} detected page breaks`);
+    for (let i = 0; i < pageBreakPositions.length - 1; i++) {
+      pageRanges.push({
+        start: pageBreakPositions[i],
+        end: pageBreakPositions[i + 1],
+        page: Math.min(i + 1, totalPages)
+      });
+    }
+  } else {
+    // Fall back to equal distribution with slight improvements
+    console.log(`📏 Using equal distribution for ${totalPages} pages`);
+    const baseChunkSize = Math.floor(textLength / totalPages);
+    
+    for (let i = 0; i < totalPages; i++) {
+      const start = i * baseChunkSize;
+      const end = i === totalPages - 1 ? textLength : (i + 1) * baseChunkSize;
+      
+      // Adjust boundaries to word boundaries for better accuracy
+      let adjustedStart = start;
+      let adjustedEnd = end;
+      
+      if (i > 0) {
+        // Find previous word boundary
+        const spaceIndex = totalText.lastIndexOf(' ', start);
+        if (spaceIndex > start - 200 && spaceIndex < start + 200) {
+          adjustedStart = spaceIndex + 1;
+        }
+      }
+      
+      if (i < totalPages - 1) {
+        // Find next word boundary
+        const spaceIndex = totalText.indexOf(' ', end);
+        if (spaceIndex > end - 200 && spaceIndex < end + 200) {
+          adjustedEnd = spaceIndex;
+        }
+      }
+      
+      pageRanges.push({
+        start: adjustedStart,
+        end: adjustedEnd,
+        page: i + 1
+      });
+    }
+  }
+  
+  // Now split text into chunks and assign page numbers
+  const textChunks = splitTextIntoChunks(totalText, {
     maxChunkSize: chunkSize,
     overlapSize: overlap
   });
   
-  // Estimate page numbers based on chunk position and total pages
-  const avgChunkSize = pdfData.text.length / pdfData.numpages;
-  
   return textChunks.map((text, index) => {
-    const chunkStart = pdfData.text.indexOf(text);
-    const estimatedPage = Math.ceil((chunkStart + text.length / 2) / avgChunkSize) || 1;
-    const actualPage = Math.min(estimatedPage, pdfData.numpages);
+    const chunkStart = totalText.indexOf(text);
+    const chunkMidpoint = chunkStart + Math.floor(text.length / 2);
+    
+    // Find which page this chunk belongs to based on midpoint
+    let assignedPage = 1;
+    for (const range of pageRanges) {
+      if (chunkMidpoint >= range.start && chunkMidpoint < range.end) {
+        assignedPage = range.page;
+        break;
+      }
+      if (chunkMidpoint >= range.start) {
+        assignedPage = range.page; // Use last valid page
+      }
+    }
+    
+    // For chunks that span multiple pages, note the range
+    let pageRange = assignedPage;
+    const chunkEnd = chunkStart + text.length;
+    
+    // Check if chunk spans multiple pages
+    const startPage = pageRanges.find(r => chunkStart >= r.start && chunkStart < r.end)?.page || assignedPage;
+    const endPage = pageRanges.find(r => chunkEnd >= r.start && chunkEnd <= r.end)?.page || assignedPage;
+    
+    if (startPage !== endPage) {
+      pageRange = `${startPage}-${endPage}`;
+    }
     
     return {
       text,
-      page: actualPage,
+      page: assignedPage,
+      pageRange: pageRange, // Additional field for spans
       chunkIndex: index,
       startChar: chunkStart,
-      endChar: chunkStart + text.length
+      endChar: chunkStart + text.length,
+      metadata: {
+        estimationMethod: hasGoodPageBreaks ? 'pattern_based' : 'distribution_based',
+        confidence: hasGoodPageBreaks ? 'high' : 'medium',
+        totalPages: totalPages
+      }
     };
   });
 }
@@ -258,7 +399,7 @@ function processPDFForEmbeddings(pdfData, options = {}) {
     return {
       chunks,
       metadata: {
-        totalPages: pdfData.numpages || 1,
+        totalPages: pdfData.numpages || pdfData.pageCount || estimatePageCountFromText(pdfData.text),
         totalChunks: chunks.length,
         totalWords: chunks.reduce((sum, chunk) => sum + chunk.wordCount, 0),
         totalChars: chunks.reduce((sum, chunk) => sum + chunk.charCount, 0),
@@ -277,5 +418,6 @@ export {
   extractPDFChunks,
   cleanTextForEmbedding,
   validateChunk,
-  processPDFForEmbeddings
+  processPDFForEmbeddings,
+  estimatePageCountFromText
 };

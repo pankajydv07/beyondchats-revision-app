@@ -9,22 +9,33 @@ import authService from '../services/authService.js';
  */
 export const requireAuth = async (req, res, next) => {
   try {
+    console.log('🔐 Auth middleware called for:', req.method, req.path)
+    
     // Extract token from Authorization header
     const authHeader = req.headers.authorization;
+    console.log('🔐 Auth header present:', !!authHeader)
+    
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log('❌ No valid auth header found')
       return res.status(401).json({ error: 'Authentication required' });
     }
     
     const token = authHeader.split(' ')[1];
     if (!token) {
+      console.log('❌ No token in auth header')
       return res.status(401).json({ error: 'Invalid token format' });
     }
+    
+    console.log('🔐 Token found, verifying...')
     
     // Verify token and get user
     const { valid, user } = await authService.verifySession(token);
     if (!valid || !user) {
+      console.log('❌ Token verification failed')
       return res.status(401).json({ error: 'Invalid or expired token' });
     }
+    
+    console.log('✅ Auth successful for user:', user.id)
     
     // Attach user to request
     req.user = user;

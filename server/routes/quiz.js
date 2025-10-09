@@ -781,26 +781,4 @@ router.get('/quiz-attempts/:fileId', async (req, res) => {
   })
 })
 
-/**
- * Save a quiz attempt
- */
-router.post('/save-attempt', async (req, res) => {
-  try {
-    const { fileId, quiz, results } = req.body
-    
-    // This would normally save to a database
-    // For now, just return success
-    
-    res.json({
-      success: true,
-      attemptId: `attempt-${Date.now()}`,
-      timestamp: new Date().toISOString()
-    })
-    
-  } catch (error) {
-    console.error('Error saving quiz attempt:', error)
-    res.status(500).json({ error: 'Failed to save quiz attempt' })
-  }
-})
-
 export default router

@@ -21,12 +21,22 @@ function constructRAGPrompt(userMessage, retrievedChunks, conversationContext = 
     .sort((a, b) => (b.similarity || 0) - (a.similarity || 0))
     .slice(0, maxChunks);
 
-  // Build context from selected chunks
+  // Build context from selected chunks with better page formatting
   const contextParts = selectedChunks.map((chunk, index) => {
-    let chunkText = `[${index + 1}] Page ${chunk.page}: ${chunk.text}`;
+    const pageInfo = chunk.pageRange || chunk.page;
+    const confidence = chunk.metadata?.confidence || 'medium';
+    
+    let chunkText = `[${index + 1}] Page ${pageInfo}: ${chunk.text}`;
+    
     if (includeSimilarityScores && chunk.similarity) {
       chunkText += ` (relevance: ${Math.round(chunk.similarity * 100)}%)`;
     }
+    
+    // Add confidence indicator in development
+    if (includeSimilarityScores && confidence !== 'high') {
+      chunkText += ` (page estimation: ${confidence})`;
+    }
+    
     return chunkText;
   }).join('\n\n');
 
@@ -40,7 +50,13 @@ function constructRAGPrompt(userMessage, retrievedChunks, conversationContext = 
     conversationSummary = `\n\nRecent conversation context:\n${summaryParts.join('\n')}\n`;
   }
 
-  const prompt = `Use ONLY the provided context to answer the user's question. If the answer cannot be found in the context, say so clearly. Always cite page numbers when referencing information.${conversationSummary}
+  const prompt = `Use ONLY the provided context to answer the user's question. If the answer cannot be found in the context, say so clearly. 
+
+IMPORTANT CITATION RULES:
+- ALWAYS cite page numbers when referencing information
+- Use the EXACT page numbers provided in the context (e.g., "Page 5" or "Page 3-4" for content spanning pages)
+- Include direct quotes when possible to support your answer
+- If page numbers appear as ranges (e.g., "Page 2-3"), the content spans multiple pages${conversationSummary}
 
 Context from PDF:
 ${contextParts}
@@ -49,10 +65,10 @@ Current question: ${userMessage}
 
 Please provide your response in the following JSON format:
 {
-  "answer": "Your detailed answer here, citing page numbers where appropriate",
+  "answer": "Your detailed answer here, citing specific page numbers (e.g., 'According to page 5...' or 'As stated on pages 2-3...')",
   "citations": [
-    {"page": 1, "snippet": "relevant text snippet from that page"},
-    {"page": 2, "snippet": "another relevant snippet"}
+    {"page": "5", "snippet": "exact text snippet from that page with key information"},
+    {"page": "2-3", "snippet": "snippet for content spanning multiple pages"}
   ]
 }`;
 
@@ -60,14 +76,21 @@ Please provide your response in the following JSON format:
 }
 
 /**
- * Extract citations from retrieved chunks
+ * Extract citations from retrieved chunks with enhanced page information
  */
 function extractCitations(retrievedChunks) {
-  return retrievedChunks.map(chunk => ({
-    page: chunk.page,
-    snippet: chunk.text.substring(0, 150) + (chunk.text.length > 150 ? '...' : ''),
-    similarity: Math.round(chunk.similarity * 100) / 100
-  }));
+  return retrievedChunks.map(chunk => {
+    // Use pageRange if available for better accuracy
+    const pageInfo = chunk.pageRange || chunk.page;
+    const confidence = chunk.metadata?.confidence || 'medium';
+    
+    return {
+      page: pageInfo,
+      snippet: chunk.text.substring(0, 150) + (chunk.text.length > 150 ? '...' : ''),
+      similarity: Math.round((chunk.similarity || 0) * 100) / 100,
+      confidence: confidence // Add confidence indicator
+    };
+  });
 }
 
 /**
@@ -173,17 +196,27 @@ function validateParsedResponse(parsed) {
     citations: []
   };
 
-  // Validate citations structure
+  // Validate citations structure with enhanced page format support
   if (Array.isArray(parsed.citations)) {
     validated.citations = parsed.citations.filter(citation => 
       citation && 
       typeof citation === 'object' && 
-      (typeof citation.page === 'number' || typeof citation.page === 'string') && 
+      (typeof citation.page === 'number' || 
+       typeof citation.page === 'string' && citation.page.length > 0) && 
       typeof citation.snippet === 'string'
-    ).map(citation => ({
-      page: parseInt(citation.page) || citation.page,
-      snippet: citation.snippet.substring(0, 200) // Limit snippet length
-    }));
+    ).map(citation => {
+      // Handle both numeric and string page formats (including ranges like "2-3")
+      let pageValue = citation.page;
+      if (typeof pageValue === 'number') {
+        pageValue = pageValue.toString();
+      }
+      
+      return {
+        page: pageValue,
+        snippet: citation.snippet.substring(0, 200), // Limit snippet length
+        confidence: citation.confidence || 'medium'
+      };
+    });
   }
 
   return validated;

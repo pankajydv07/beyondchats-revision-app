@@ -150,7 +150,11 @@ router.post('/', requireAuth, async (req, res) => {
  */
 router.post('/save-attempt', requireAuth, async (req, res) => {
   try {
-    console.log('Received save-attempt request with body:', req.body)
+    console.log('🚨🚨🚨 SAVE-ATTEMPT ENDPOINT REACHED! 🚨🚨🚨')
+    console.log('🎯 Save-attempt endpoint called')
+    console.log('🎯 Request headers:', req.headers)
+    console.log('🎯 Request body:', JSON.stringify(req.body, null, 2))
+    console.log('🎯 Authenticated user:', req.user)
     
     const {
       user_id,
@@ -165,7 +169,7 @@ router.post('/save-attempt', requireAuth, async (req, res) => {
       feedback
     } = req.body
 
-    console.log('Extracted fields:', {
+    console.log('🎯 Extracted fields:', {
       user_id,
       pdf_id,
       topic,
@@ -177,15 +181,18 @@ router.post('/save-attempt', requireAuth, async (req, res) => {
 
     // Validate required fields
     if (!user_id || !topic || !questions || !answers || score === undefined) {
+      console.log('❌ Missing required fields validation failed')
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields: user_id, topic, questions, answers, score'
+        error: 'Missing required fields: user_id, topic, questions, answers, score',
+        received: { user_id, topic, questions: !!questions, answers: !!answers, score }
       })
     }
 
     // Validate UUID format for user_id
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
     if (!uuidRegex.test(user_id)) {
+      console.log('❌ UUID validation failed for user_id:', user_id)
       return res.status(400).json({
         success: false,
         error: 'Invalid user ID format'
@@ -193,9 +200,9 @@ router.post('/save-attempt', requireAuth, async (req, res) => {
     }
 
     // Validate score is between 0 and 1
-    console.log('Validating score:', score, 'Type:', typeof score)
+    console.log('🎯 Validating score:', score, 'Type:', typeof score)
     if (score < 0 || score > 1) {
-      console.error('Score validation failed:', score)
+      console.error('❌ Score validation failed:', score)
       return res.status(400).json({
         success: false,
         error: 'Score must be between 0 and 1'
@@ -230,6 +237,9 @@ router.post('/save-attempt', requireAuth, async (req, res) => {
         error: 'Failed to save quiz attempt'
       })
     }
+
+    console.log('🎯 Database operation successful!')
+    console.log('🎯 Saved attempt:', attempt)
 
     res.status(201).json({
       success: true,

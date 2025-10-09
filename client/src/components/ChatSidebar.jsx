@@ -2,8 +2,10 @@ import React, { useState, useCallback, useRef, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import QuizRenderer from './QuizRenderer'
 import { getApiUrl, API_ENDPOINTS } from '../utils/api'
+import { useAuth } from '../context/AuthContext'
 
 const ChatSidebar = ({ selectedFile }) => {
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('chat')
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -147,18 +149,37 @@ const ChatSidebar = ({ selectedFile }) => {
 
   const handleQuizComplete = useCallback(async (results) => {
     try {
+      // Calculate totals
+      const totalQuestions = (quiz.mcq?.length || 0) + (quiz.shortAnswer?.length || 0) + (quiz.longAnswer?.length || 0)
+      const totalCorrect = (results.mcq?.filter(r => r.isCorrect).length || 0) + 
+                           (results.shortAnswer?.filter(r => (r.score || 0) >= 7).length || 0) + 
+                           (results.longAnswer?.filter(r => (r.score || 0) >= 7).length || 0)
+      
+      // Prepare the data in the format expected by the backend
+      const attemptData = {
+        user_id: user?.id, // Add user from context
+        pdf_id: selectedFile?.id,
+        topic: `Quiz on ${selectedFile?.original_name || 'PDF'}`,
+        questions: quiz,
+        answers: {
+          mcq: results.mcq || [],
+          shortAnswer: results.shortAnswer || [],
+          longAnswer: results.longAnswer || []
+        },
+        score: (results.overallScore || 0) / 100, // Convert percentage to decimal
+        total_questions: totalQuestions,
+        correct_answers: totalCorrect,
+        time_taken: null,
+        feedback: results.feedback
+      }
+
       // Save quiz attempt
       const response = await fetch(getApiUrl(API_ENDPOINTS.SAVE_ATTEMPT), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          fileId: selectedFile?.id,
-          quiz: quiz,
-          results: results,
-          timestamp: new Date().toISOString()
-        })
+        body: JSON.stringify(attemptData)
       })
 
       if (response.ok) {

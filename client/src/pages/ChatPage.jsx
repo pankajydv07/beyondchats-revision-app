@@ -448,7 +448,7 @@ function ChatPage() {
 
       // Save quiz attempt to database
       console.log('About to save quiz attempt with data:', attemptData)
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/attempts/save-attempt`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/save-attempt`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

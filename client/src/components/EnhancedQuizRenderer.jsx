@@ -90,11 +90,20 @@ const QuizRenderer = ({ quiz, onComplete, onGenerateNewQuiz }) => {
 
       const data = await response.json()
       
+      console.log('🎯 Quiz analysis completed, results:', data.results)
+      
       setResults(data.results)
       setShowResults(true)
       
+      console.log('🎯 About to call onComplete with results:', data.results)
+      console.log('🎯 onComplete function exists:', !!onComplete)
+      
       if (onComplete) {
+        console.log('🎯 Calling onComplete...')
         onComplete(data.results)
+        console.log('✅ onComplete called successfully')
+      } else {
+        console.log('❌ No onComplete function provided')
       }
     } catch (error) {
       console.error('Error analyzing quiz:', error)

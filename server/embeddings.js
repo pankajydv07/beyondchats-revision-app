@@ -73,14 +73,24 @@ async function generateEmbeddingsBatch(textChunks, batchSize = 10) {
  */
 async function storePDFChunks(pdfId, chunks) {
   try {
-    // Prepare data for insertion
+    // Prepare data for insertion with enhanced page information
     const chunkData = chunks.map((chunk, index) => ({
       pdf_id: pdfId,
-      page: chunk.page,
+      page: typeof chunk.page === 'string' && chunk.page.includes('-') 
+        ? parseInt(chunk.page.split('-')[0]) // Use first page for range
+        : (parseInt(chunk.page) || chunk.page || 1),
       text: chunk.text,
       embedding: chunk.embedding,
       chunk_index: index,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      // Store additional metadata including page range and confidence
+      metadata: JSON.stringify({
+        pageRange: chunk.pageRange || chunk.page,
+        estimationMethod: chunk.metadata?.estimationMethod || 'basic',
+        confidence: chunk.metadata?.confidence || 'medium',
+        startChar: chunk.startChar,
+        endChar: chunk.endChar
+      })
     }));
 
     // Insert chunks into Supabase
@@ -120,7 +130,17 @@ async function searchSimilarChunks(pdfId, queryEmbedding, topK = 5) {
       return await fallbackTextSearch(pdfId, topK);
     }
 
-    return data || [];
+    // Enhance results with metadata information
+    return (data || []).map(chunk => ({
+      ...chunk,
+      // Extract enhanced page information from metadata
+      pageRange: chunk.metadata?.pageRange || chunk.page,
+      metadata: {
+        ...chunk.metadata,
+        confidence: chunk.metadata?.confidence || 'medium',
+        estimationMethod: chunk.metadata?.estimationMethod || 'basic'
+      }
+    }));
   } catch (error) {
     console.error('Error in vector search:', error);
     // Fallback to basic search
@@ -135,7 +155,7 @@ async function fallbackTextSearch(pdfId, topK = 5) {
   try {
     const { data, error } = await supabase
       .from('pdf_chunks')
-      .select('id, pdf_id, page, text, chunk_index')
+      .select('id, pdf_id, page, text, chunk_index, metadata')
       .eq('pdf_id', pdfId)
       .order('chunk_index')
       .limit(topK);
@@ -146,7 +166,13 @@ async function fallbackTextSearch(pdfId, topK = 5) {
 
     return data.map(chunk => ({
       ...chunk,
-      similarity: 0.5 // Default similarity for fallback
+      similarity: 0.5, // Default similarity for fallback
+      pageRange: chunk.metadata?.pageRange || chunk.page,
+      metadata: {
+        ...chunk.metadata,
+        confidence: chunk.metadata?.confidence || 'low',
+        estimationMethod: chunk.metadata?.estimationMethod || 'fallback'
+      }
     }));
   } catch (error) {
     console.error('Error in fallback search:', error);

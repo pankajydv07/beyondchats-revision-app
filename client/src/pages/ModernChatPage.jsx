@@ -513,29 +513,69 @@ function ModernChatPage() {
 
   // Quiz handling
   const handleQuizSubmit = useCallback(async (results) => {
+    console.log('🎯 handleQuizSubmit called with results:', results)
+    console.log('🎯 User:', user)
+    console.log('🎯 Selected PDF:', selectedPDF)
+    console.log('🎯 Session:', session)
+    
     try {
+      // Extract the quiz data from the most recent message
+      const lastMessage = storedData.chats.find(chat => chat.id === currentChatId)?.messages?.slice(-1)[0]
+      const quizData = lastMessage?.quiz || {}
+      
+      console.log('🎯 Quiz data from last message:', quizData)
+      
+      // Calculate totals
+      const totalQuestions = (quizData.mcq?.length || 0) + (quizData.shortAnswer?.length || 0) + (quizData.longAnswer?.length || 0)
+      const totalCorrect = (results.mcq?.filter(r => r.isCorrect).length || 0) + 
+                           (results.shortAnswer?.filter(r => (r.score || 0) >= 7).length || 0) + 
+                           (results.longAnswer?.filter(r => (r.score || 0) >= 7).length || 0)
+      
+      // Prepare the data in the format expected by the backend
+      const attemptData = {
+        user_id: user?.id,
+        pdf_id: selectedPDF?.id,
+        topic: `Quiz on ${selectedPDF?.file_name || 'PDF'}`,
+        questions: quizData,
+        answers: {
+          mcq: results.mcq || [],
+          shortAnswer: results.shortAnswer || [],
+          longAnswer: results.longAnswer || []
+        },
+        score: (results.overallScore || 0) / 100, // Convert percentage to decimal
+        total_questions: totalQuestions,
+        correct_answers: totalCorrect,
+        time_taken: null,
+        feedback: results.feedback
+      }
+      
+      console.log('🎯 Prepared attempt data:', attemptData)
+
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/save-attempt`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token || ''}`
         },
-        body: JSON.stringify({
-          userId: user?.id,
-          pdfId: selectedPDF?.id,
-          results,
-          timestamp: new Date().toISOString()
-        })
+        body: JSON.stringify(attemptData)
       })
+
+      console.log('🎯 Response status:', response.status)
+      console.log('🎯 Response headers:', response.headers)
 
       if (response.ok) {
         const data = await response.json()
-        console.log('Quiz attempt saved:', data)
+        console.log('✅ Quiz attempt saved successfully:', data)
+        // You could show a success message here
+      } else {
+        const errorData = await response.json()
+        console.error('❌ Failed to save quiz attempt:', errorData)
+        console.error('❌ Response status:', response.status, response.statusText)
       }
     } catch (error) {
-      console.error('Error saving quiz attempt:', error)
+      console.error('💥 Error saving quiz attempt:', error)
     }
-  }, [selectedPDF, user, session])
+  }, [selectedPDF, user, session, storedData.chats, currentChatId])
 
   // File upload handling
   const handleFileSelect = useCallback(async (pdfData) => {
