@@ -1,29 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 
 const Login = ({ redirectTo = '/' }) => {
-  const { signInWithGoogle, isAuthenticated, loading, error: authError } = useAuth();
+  const { signInWithGoogle, isAuthenticated, loading } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const [loginError, setLoginError] = useState('');
-  
-  // Check for error in location state (from redirects)
-  useEffect(() => {
-    if (location.state?.error) {
-      setLoginError(location.state.error);
-      // Clear the error from location state
-      navigate(location.pathname, { replace: true });
-    }
-  }, [location, navigate]);
-  
-  // Display auth context errors
-  useEffect(() => {
-    if (authError) {
-      setLoginError(authError);
-    }
-  }, [authError]);
   
   // Redirect if already authenticated
   useEffect(() => {
@@ -34,13 +16,7 @@ const Login = ({ redirectTo = '/' }) => {
   
   // Handle Google sign in
   const handleGoogleSignIn = async () => {
-    setLoginError(''); // Clear any previous errors
-    try {
-      await signInWithGoogle();
-    } catch (error) {
-      setLoginError('Failed to initialize sign in. Please try again.');
-      console.error('Sign in initialization error:', error);
-    }
+    await signInWithGoogle();
   };
   
   if (loading) {
@@ -64,21 +40,6 @@ const Login = ({ redirectTo = '/' }) => {
           <h2 className="text-xl font-semibold text-gray-700">Revision App</h2>
           <p className="mt-2 text-gray-600">Sign in to start your learning journey</p>
         </div>
-        
-        {loginError && (
-          <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-red-700">{loginError}</p>
-              </div>
-            </div>
-          </div>
-        )}
         
         <div className="mt-8 space-y-6">
           <button

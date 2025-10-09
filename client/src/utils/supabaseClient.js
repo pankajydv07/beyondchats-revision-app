@@ -11,20 +11,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
   });
 }
 
-// Log configuration for debugging (without exposing sensitive keys)
-console.log(`Supabase client configured with URL: ${supabaseUrl ? 'FOUND' : 'MISSING'}`);
-console.log(`Environment: ${import.meta.env.MODE}`);
-console.log(`Base URL: ${window.location.origin}`);
-
-// Create Supabase client with specific configuration for better auth handling
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-    flowType: 'implicit' // Handle token in URL fragment
-  }
-});
+// Create a single supabase client for the entire app
+// Using anon key for client-side operations with RLS
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Verify connection on startup
 async function verifyConnection() {
@@ -34,7 +23,7 @@ async function verifyConnection() {
     if (error) {
       console.warn('⚠️  Supabase client connection warning:', error.message);
     } else {
-      console.log('✅ Client connected to Supabase successfully', data?.session ? 'with session' : 'without session');
+      console.log('✅ Client connected to Supabase successfully');
     }
   } catch (err) {
     console.error('❌ Failed to connect to Supabase from client:', err.message);
