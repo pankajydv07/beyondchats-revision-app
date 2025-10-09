@@ -1,9 +1,9 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
-import Navbar from './components/Navbar'
+import Header from './components/Header'
 import HomePage from './pages/HomePage'
-import ChatPage from './pages/ChatPage'
+import ModernChatPage from './pages/ModernChatPage'
 import DashboardPage from './pages/DashboardPage'
 import ProfilePage from './pages/ProfilePage'
 import Login from './pages/Login'
@@ -39,17 +39,17 @@ function App() {
         {/* Protected routes */}
         <Route path="/" element={
           <ProtectedRoute>
-            <Navbar />
+            <Header />
             <HomePage />
           </ProtectedRoute>
         } />
         
         <Route path="/chat" element={
           <ProtectedRoute>
-            <div className="min-h-screen">
-              <Navbar />
-              <div style={{ height: 'calc(100vh - 64px)' }}>
-                <ChatPage />
+            <div className="h-screen flex flex-col overflow-hidden">
+              <Header />
+              <div className="flex-1 overflow-hidden">
+                <ModernChatPage />
               </div>
             </div>
           </ProtectedRoute>
@@ -57,14 +57,14 @@ function App() {
         
         <Route path="/dashboard" element={
           <ProtectedRoute>
-            <Navbar />
+            <Header />
             <DashboardPage />
           </ProtectedRoute>
         } />
         
         <Route path="/profile" element={
           <ProtectedRoute>
-            <Navbar />
+            <Header />
             <ProfilePage />
           </ProtectedRoute>
         } />

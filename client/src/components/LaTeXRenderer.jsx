@@ -163,7 +163,11 @@ const LaTeXRenderer = ({ content }) => {
               </div>
             )
           case 'inline-math':
-            return renderMath(part.content, false)
+            return (
+              <span key={index}>
+                {renderMath(part.content, false)}
+              </span>
+            )
           case 'text':
           default:
             return (

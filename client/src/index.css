@@ -1,9 +1,28 @@
 /* KaTeX CSS for LaTeX math rendering */
 @import url('https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css');
 
+/* Import modern UI enhancements */
+@import './styles/modern-ui.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Global layout constraints */
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Prevent horizontal overflow */
+body {
+  overflow-x: hidden;
+}
 
 /* Custom styles for math expressions */
 .katex-display {
