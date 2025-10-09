@@ -119,6 +119,11 @@ function createSystemPrompt() {
 3. Well-structured with clear explanations
 4. Include specific page references when citing information
 5. Acknowledge when information is not available in the context
+6. Use LaTeX formatting for mathematical expressions:
+   - Use $expression$ for inline math (e.g., $E=mc^2$)
+   - Use $$expression$$ for display math (e.g., $$F = ma$$)
+   - Always format equations, formulas, and mathematical symbols using LaTeX
+   - Examples: $\\pi$, $\\alpha$, $\\beta$, $\\int_0^\\infty$, $\\frac{a}{b}$, $\\sqrt{x}$
 
 Always respond in JSON format with "answer" and "citations" fields.`;
 }

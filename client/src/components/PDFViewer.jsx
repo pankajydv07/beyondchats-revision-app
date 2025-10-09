@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import PropTypes from 'prop-types'
 import { useAuth } from '../context/AuthContext'
+import { getApiUrl, API_ENDPOINTS } from '../utils/api'
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css'
 import 'react-pdf/dist/esm/Page/TextLayer.css'
 
@@ -71,7 +72,7 @@ const PDFViewer = ({ file }) => {
 
     try {
       setLoading(true)
-      const response = await fetch('http://localhost:5000/api/extract-text', {
+      const response = await fetch(getApiUrl(API_ENDPOINTS.PDF_EXTRACT_TEXT), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

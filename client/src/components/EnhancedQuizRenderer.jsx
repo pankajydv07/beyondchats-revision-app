@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import PropTypes from 'prop-types'
+import { getApiUrl, API_ENDPOINTS } from '../utils/api'
 
 const QuizRenderer = ({ quiz, onComplete }) => {
   const [mcqAnswers, setMcqAnswers] = useState({})
@@ -72,7 +73,7 @@ const QuizRenderer = ({ quiz, onComplete }) => {
       }
 
       // Send to API for analysis
-      const response = await fetch('http://localhost:5000/api/analyze-quiz', {
+      const response = await fetch(getApiUrl(API_ENDPOINTS.ANALYZE_QUIZ), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

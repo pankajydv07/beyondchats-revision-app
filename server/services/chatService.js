@@ -214,7 +214,7 @@ async function generateGeneralResponse(message) {
     messages: [
       {
         role: "system",
-        content: "You are a helpful educational assistant. Provide clear, accurate, and educational responses to help students learn better."
+        content: "You are a helpful educational assistant. Provide clear, accurate, and educational responses to help students learn better. When explaining mathematical concepts, use LaTeX formatting: $expression$ for inline math and $$expression$$ for display math. Examples: $E=mc^2$, $$F = ma$$, $\\pi$, $\\alpha$, $\\frac{a}{b}$, $\\sqrt{x}$."
       },
       {
         role: "user",

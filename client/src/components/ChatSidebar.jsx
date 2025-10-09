@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import QuizRenderer from './QuizRenderer'
+import { getApiUrl, API_ENDPOINTS } from '../utils/api'
 
 const ChatSidebar = ({ selectedFile }) => {
   const [activeTab, setActiveTab] = useState('chat')
@@ -25,7 +26,7 @@ const ChatSidebar = ({ selectedFile }) => {
     if (!selectedFile?.id) return
 
     try {
-      const response = await fetch(`http://localhost:5000/api/progress/${selectedFile.id}`)
+      const response = await fetch(getApiUrl(API_ENDPOINTS.PROGRESS, { fileId: selectedFile.id }))
       if (response.ok) {
         const data = await response.json()
         setProgress(data.progress || { completed: 0, total: 0, attempts: [] })
@@ -64,7 +65,7 @@ const ChatSidebar = ({ selectedFile }) => {
     setError('')
 
     try {
-      const response = await fetch('http://localhost:5000/api/rag-query', {
+      const response = await fetch(getApiUrl(API_ENDPOINTS.RAG_QUERY), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -118,7 +119,7 @@ const ChatSidebar = ({ selectedFile }) => {
     setError('')
 
     try {
-      const response = await fetch('http://localhost:5000/api/generate-quiz', {
+      const response = await fetch(getApiUrl(API_ENDPOINTS.GENERATE_QUIZ), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -147,7 +148,7 @@ const ChatSidebar = ({ selectedFile }) => {
   const handleQuizComplete = useCallback(async (results) => {
     try {
       // Save quiz attempt
-      const response = await fetch('http://localhost:5000/api/save-attempt', {
+      const response = await fetch(getApiUrl(API_ENDPOINTS.SAVE_ATTEMPT), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

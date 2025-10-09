@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import PropTypes from 'prop-types'
+import LaTeXRenderer from './LaTeXRenderer'
 
 const MessageBubble = ({ message, isLastMessage = false }) => {
   const [showFullTimestamp, setShowFullTimestamp] = useState(false)
@@ -35,31 +36,7 @@ const MessageBubble = ({ message, isLastMessage = false }) => {
   )
 
   const MessageContent = ({ content }) => {
-    // Simple markdown-like formatting
-    const formatContent = (text) => {
-      if (!text) return ''
-      
-      // Convert **bold** to <strong>
-      text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      
-      // Convert *italic* to <em>
-      text = text.replace(/\*(.*?)\*/g, '<em>$1</em>')
-      
-      // Convert `code` to <code>
-      text = text.replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 py-0.5 rounded text-sm">$1</code>')
-      
-      // Convert line breaks to <br>
-      text = text.replace(/\n/g, '<br>')
-      
-      return text
-    }
-
-    return (
-      <div 
-        className="prose prose-sm max-w-none"
-        dangerouslySetInnerHTML={{ __html: formatContent(content) }}
-      />
-    )
+    return <LaTeXRenderer content={content} />
   }
 
   return (

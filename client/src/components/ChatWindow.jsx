@@ -3,6 +3,7 @@ import PropTypes from 'prop-types'
 import MessageBubble from './MessageBubble'
 import ChatInput from './ChatInput'
 import EnhancedQuizRenderer from './EnhancedQuizRenderer'
+import { getApiUrl, API_ENDPOINTS } from '../utils/api'
 
 const ChatWindow = ({
   messages,
@@ -35,7 +36,7 @@ const ChatWindow = ({
     setIsGeneratingQuiz(true)
     
     try {
-      const response = await fetch('http://localhost:5000/api/generate-quiz', {
+      const response = await fetch(getApiUrl(API_ENDPOINTS.GENERATE_QUIZ), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
