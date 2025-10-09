@@ -12,16 +12,18 @@
 html, body, #root {
   height: 100%;
   width: 100%;
-  overflow: hidden;
+  /* Remove overflow: hidden to allow page scrolling */
 }
 
 * {
   box-sizing: border-box;
 }
 
-/* Prevent horizontal overflow */
+/* Prevent horizontal overflow but allow vertical scrolling */
 body {
   overflow-x: hidden;
+  /* Allow vertical scrolling for pages like dashboard */
+  overflow-y: auto;
 }
 
 /* Custom styles for math expressions */
