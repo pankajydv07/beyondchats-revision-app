@@ -14,7 +14,7 @@ if (!fs.existsSync(config.uploadsDir)) {
 // CORS configuration
 const corsOptions = {
   origin: config.nodeEnv === 'production' 
-    ? ['https://yourdomain.com'] // Add your production domains
+    ? ['https://beyondchats-revision-app.vercel.app/'] // Add your production domains
     : ['http://localhost:3000', 'http://localhost:5173'], // Common dev ports
   credentials: true
 }

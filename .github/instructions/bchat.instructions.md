@@ -1,7 +1,7 @@
 ---
 applyTo: '**'
 ---
-
+server and client are runnning and it will automatically restart with code change. so dont need to manually restart okay
 
 ## 🧠 Setup & Project Structure
 

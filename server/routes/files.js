@@ -645,4 +645,89 @@ router.get('/pdf/:fileId', requireAuth, async (req, res) => {
   }
 })
 
+/**
+ * Delete PDF file and its metadata
+ */
+router.delete('/pdf/:pdfId', requireAuth, async (req, res) => {
+  try {
+    const { pdfId } = req.params
+    const userId = req.user?.id
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' })
+    }
+
+    console.log(`🗑️ Deleting PDF ${pdfId} for user ${userId}`)
+
+    // First, get the PDF metadata to check ownership and get storage path
+    const { data: pdfData, error: fetchError } = await supabase
+      .from('pdf_files')
+      .select('*')
+      .eq('id', pdfId)
+      .eq('user_id', userId)
+      .single()
+
+    if (fetchError || !pdfData) {
+      console.error('PDF not found or access denied:', fetchError)
+      return res.status(404).json({ error: 'PDF not found' })
+    }
+
+    // Delete PDF chunks from embeddings table
+    const { error: chunksError } = await supabase
+      .from('pdf_chunks')
+      .delete()
+      .eq('pdf_id', pdfId)
+
+    if (chunksError) {
+      console.warn('Error deleting PDF chunks:', chunksError)
+    }
+
+    // Delete the file from Supabase storage
+    if (pdfData.file_url) {
+      const { error: storageError } = await supabase.storage
+        .from('pdfs')
+        .remove([pdfData.file_url])
+
+      if (storageError) {
+        console.warn('Error deleting file from storage:', storageError)
+      }
+    }
+
+    // Delete local file if it exists
+    if (pdfData.file_name) {
+      try {
+        const localPath = join(config.uploadsDir, pdfData.file_name)
+        if (fs.existsSync(localPath)) {
+          fs.unlinkSync(localPath)
+          console.log('📁 Deleted local file:', localPath)
+        }
+      } catch (error) {
+        console.warn('Error deleting local file:', error)
+      }
+    }
+
+    // Delete PDF metadata from database
+    const { error: deleteError } = await supabase
+      .from('pdf_files')
+      .delete()
+      .eq('id', pdfId)
+      .eq('user_id', userId)
+
+    if (deleteError) {
+      console.error('Error deleting PDF metadata:', deleteError)
+      return res.status(500).json({ error: 'Failed to delete PDF metadata' })
+    }
+
+    res.json({
+      success: true,
+      pdfId,
+      timestamp: new Date().toISOString()
+    })
+
+  } catch (error) {
+    console.error('Error deleting PDF:', error)
+    res.status(500).json({ error: 'Failed to delete PDF' })
+  }
+})
+
 export default router
