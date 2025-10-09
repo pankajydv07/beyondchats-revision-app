@@ -84,6 +84,44 @@ function ChatPage() {
     }
   }, [user?.id, session?.access_token])
 
+  // Load PDFs from database
+  const loadPDFs = useCallback(async () => {
+    if (!user?.id || !session?.access_token) return
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/pdfs?userId=${user.id}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const pdfsFromDB = data.pdfs || []
+        
+        // Convert database format to local format
+        const formattedPDFs = pdfsFromDB.map(pdf => ({
+          id: pdf.id,
+          name: pdf.original_name || pdf.file_name,
+          url: `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/pdf/${pdf.id}`,
+          size: pdf.file_size,
+          uploadedAt: pdf.created_at,
+          totalPages: pdf.total_pages,
+          status: pdf.processing_status
+        }))
+
+        // Merge with local PDFs (prioritizing database PDFs)
+        setStoredData(prev => ({
+          ...prev,
+          pdfs: formattedPDFs
+        }))
+      }
+    } catch (error) {
+      console.error('Error loading PDFs:', error)
+    }
+  }, [user?.id, session?.access_token])
+
   // Load chat messages for a specific chat
   const loadChatMessages = useCallback(async (chatId) => {
     if (!user?.id || !session?.access_token) return []
@@ -114,22 +152,18 @@ function ChatPage() {
     return []
   }, [user?.id, session?.access_token])
 
-  // Load chat history on component mount and when user changes
+  // Load chat history and PDFs on component mount and when user changes
   useEffect(() => {
     loadChatHistory()
-  }, [loadChatHistory])
+    loadPDFs()
+  }, [loadChatHistory, loadPDFs])
 
   // Update localStorage whenever storedData changes
   useEffect(() => {
     saveStoredData(storedData)
   }, [storedData])
 
-  // Load initial PDF if available
-  useEffect(() => {
-    if (storedData.pdfs.length > 0 && !selectedPDF) {
-      setSelectedPDF(storedData.pdfs[0])
-    }
-  }, [storedData.pdfs, selectedPDF])
+  // Note: Removed automatic PDF selection - users must explicitly select PDFs
 
   const createNewChat = useCallback(() => {
     const newChatId = generateSecureUUID()
@@ -167,9 +201,42 @@ function ChatPage() {
   }, [])
 
   const sendMessage = useCallback(async (message) => {
-    if (!currentChatId || !message.trim()) return
+    if (!message.trim()) return
 
-    const currentChat = storedData.chats.find(chat => chat.id === currentChatId)
+    // Check authentication before sending message
+    if (!user?.id || !session?.access_token) {
+      console.error('Authentication required to send message')
+      return
+    }
+
+    // If no chat is selected, automatically create a new one
+    let chatId = currentChatId
+    let currentChat = null
+    
+    if (!chatId) {
+      const newChatId = generateSecureUUID()
+      const newChat = {
+        id: newChatId,
+        title: 'New Chat',
+        messages: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        pdfId: selectedPDF?.id || null
+      }
+
+      setStoredData(prev => ({
+        ...prev,
+        chats: [newChat, ...prev.chats]
+      }))
+
+      setCurrentChatId(newChatId)
+      setActiveTab('chats')
+      chatId = newChatId
+      currentChat = newChat
+    } else {
+      currentChat = storedData.chats.find(chat => chat.id === chatId)
+    }
+    
     if (!currentChat) return
 
     // Add user message
@@ -187,7 +254,7 @@ function ChatPage() {
       ? generateChatTitle(message)
       : currentChat.title
 
-    updateChat(currentChatId, {
+    updateChat(chatId, {
       messages: updatedMessages,
       title: chatTitle
     })
@@ -202,7 +269,7 @@ function ChatPage() {
         },
         body: JSON.stringify({
           userId: user?.id,
-          chatId: currentChatId,
+          chatId: chatId,
           message: message,
           isUser: true
         })
@@ -219,6 +286,13 @@ function ChatPage() {
     setIsTyping(true)
 
     try {
+      console.log('Sending message to chat API:', {
+        chatId: chatId,
+        message: message,
+        pdfId: selectedPDF?.id || null,
+        userId: user?.id
+      })
+
       // Call backend API
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/chat`, {
         method: 'POST',
@@ -227,18 +301,23 @@ function ChatPage() {
           'Authorization': `Bearer ${session?.access_token}`
         },
         body: JSON.stringify({
-          chatId: currentChatId,
+          chatId: chatId,
           message: message,
           pdfId: selectedPDF?.id || null,
           userId: user?.id
         })
       })
 
+      console.log('Chat API response status:', response.status)
+
       if (!response.ok) {
-        throw new Error('Failed to get response')
+        const errorText = await response.text()
+        console.error('Chat API error response:', errorText)
+        throw new Error(`Failed to get response: ${response.status} - ${errorText}`)
       }
 
       const data = await response.json()
+      console.log('Chat API response data:', data)
 
       // Add AI response
       const aiMessage = {
@@ -250,7 +329,7 @@ function ChatPage() {
       }
 
       const finalMessages = [...updatedMessages, aiMessage]
-      updateChat(currentChatId, { messages: finalMessages })
+      updateChat(chatId, { messages: finalMessages })
 
       // Save AI response to database
       try {
@@ -262,7 +341,7 @@ function ChatPage() {
           },
           body: JSON.stringify({
             userId: user?.id,
-            chatId: currentChatId,
+            chatId: chatId,
             message: aiMessage.content,
             isUser: false
           })
@@ -288,12 +367,12 @@ function ChatPage() {
       }
 
       const finalMessages = [...updatedMessages, errorMessage]
-      updateChat(currentChatId, { messages: finalMessages })
+      updateChat(chatId, { messages: finalMessages })
     } finally {
       // Clear typing indicator
       setIsTyping(false)
     }
-  }, [currentChatId, storedData.chats, selectedPDF, updateChat, session, user])
+  }, [currentChatId, storedData.chats, selectedPDF, updateChat, session, user, setStoredData, setCurrentChatId, setActiveTab])
 
   const selectChat = useCallback(async (chatId) => {
     setCurrentChatId(chatId)
@@ -316,21 +395,59 @@ function ChatPage() {
     }
 
     try {
-      // Prepare quiz attempt data
+      // Calculate totals from the quiz results structure FIRST
+      const totalMcq = results.mcq ? results.mcq.length : 0
+      const totalShortAnswer = results.shortAnswer ? results.shortAnswer.length : 0
+      const totalLongAnswer = results.longAnswer ? results.longAnswer.length : 0
+      const totalQuestions = totalMcq + totalShortAnswer + totalLongAnswer
+      
+      // Calculate correct answers
+      const correctMcq = results.mcq ? results.mcq.filter(q => q.isCorrect).length : 0
+      const correctAnswers = correctMcq // For now, only count MCQ as definitive correct/incorrect
+      
+      console.log('Quiz results structure:', {
+        topic: results.topic,
+        questions: results.questions,
+        selectedAnswers: results.selectedAnswers,
+        score: results.score,
+        total: results.total,
+        correct: results.correct,
+        timeSpent: results.timeSpent,
+        feedback: results.feedback,
+        overallScore: results.overallScore,
+        totalQuestions: totalQuestions,
+        allKeys: Object.keys(results)
+      })
+      
+      console.log('Sending attempt data:', {
+        topic: results.topic || 'Generated Quiz',
+        score: (results.overallScore || 0) / 100,
+        total_questions: totalQuestions,
+        overallScore: results.overallScore
+      })
+      
+      // Prepare quiz attempt data with correct field mapping
       const attemptData = {
         user_id: user.id,
         pdf_id: selectedPDF?.id || null,
         topic: results.topic || 'Generated Quiz',
-        questions: results.questions || [],
-        answers: results.selectedAnswers || [],
-        score: results.score / 100, // Convert percentage to decimal
-        total_questions: results.total || 0,
-        correct_answers: results.correct || 0,
+        questions: JSON.stringify(results), // Store the full quiz results
+        answers: JSON.stringify({
+          mcq: results.mcq || [],
+          shortAnswer: results.shortAnswer || [],
+          longAnswer: results.longAnswer || []
+        }),
+        score: (results.overallScore || 0) / 100, // Convert percentage to 0-1 decimal for server
+        total_questions: totalQuestions || 1, // Use total_questions as expected by server
+        correct_answers: correctAnswers || 0,
         time_taken: results.timeSpent || 0,
         feedback: results.feedback || null
       }
 
+      console.log('Full attempt data being sent:', attemptData)
+
       // Save quiz attempt to database
+      console.log('About to save quiz attempt with data:', attemptData)
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/attempts/save-attempt`, {
         method: 'POST',
         headers: {
@@ -340,6 +457,8 @@ function ChatPage() {
         body: JSON.stringify(attemptData)
       })
 
+      console.log('Response status:', response.status, response.statusText)
+      
       if (response.ok) {
         const data = await response.json()
         console.log('Quiz attempt saved successfully:', data)
@@ -352,10 +471,10 @@ function ChatPage() {
             quizzes: [...(prev.progress.quizzes || []), {
               id: data.attempt.id,
               date: new Date().toISOString(),
-              score: results.score,
-              totalQuestions: results.total,
-              topic: results.topic,
-              timeSpent: results.timeSpent
+              score: results.overallScore || 0,
+              totalQuestions: totalQuestions,
+              topic: results.topic || 'Generated Quiz',
+              timeSpent: results.timeSpent || 0
             }]
           }
         }))
@@ -364,7 +483,12 @@ function ChatPage() {
         // This could be done through a context or event system
         console.log('Quiz attempt saved, dashboard should refresh')
       } else {
-        console.error('Failed to save quiz attempt:', response.statusText)
+        const errorText = await response.text()
+        console.error('Failed to save quiz attempt:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        })
       }
     } catch (error) {
       console.error('Error saving quiz attempt:', error)
@@ -389,7 +513,10 @@ function ChatPage() {
       name: file.name,
       url: file.url,
       size: file.size,
-      uploadedAt: new Date().toISOString()
+      uploadedAt: file.uploadedAt || new Date().toISOString(), // Preserve original upload time
+      // Keep additional metadata if available
+      totalPages: file.totalPages,
+      status: file.status
     }
 
     setStoredData(prev => ({
@@ -397,7 +524,7 @@ function ChatPage() {
       pdfs: [pdfData, ...prev.pdfs.filter(pdf => pdf.id !== pdfData.id)]
     }))
 
-    setSelectedPDF(pdfData)
+    // Note: Removed automatic PDF selection - users must explicitly select PDFs
     setShowUploadModal(false)
   }, [])
 

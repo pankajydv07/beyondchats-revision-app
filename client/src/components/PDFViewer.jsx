@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import PropTypes from 'prop-types'
+import { useAuth } from '../context/AuthContext'
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css'
 import 'react-pdf/dist/esm/Page/TextLayer.css'
 
@@ -8,23 +9,73 @@ import 'react-pdf/dist/esm/Page/TextLayer.css'
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`
 
 const PDFViewer = ({ file }) => {
+  const { session } = useAuth()
   const [numPages, setNumPages] = useState(null)
   const [pageNumber, setPageNumber] = useState(1)
   const [scale, setScale] = useState(1.0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [extractedText, setExtractedText] = useState('')
+  const [pdfBlobUrl, setPdfBlobUrl] = useState(null)
+
+  // Fetch PDF with authentication and create blob URL
+  const fetchPDFWithAuth = useCallback(async (fileUrl, fileId) => {
+    if (!fileUrl || !session?.access_token) return null
+
+    try {
+      // Use Supabase session access token
+      const token = session.access_token
+      
+      const response = await fetch(fileUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/pdf'
+        }
+      })
+
+      if (response.ok) {
+        const blob = await response.blob()
+        const blobUrl = URL.createObjectURL(blob)
+        setPdfBlobUrl(blobUrl)
+        return blobUrl
+      } else {
+        throw new Error(`Failed to fetch PDF: ${response.status}`)
+      }
+    } catch (err) {
+      console.error('PDF fetch error:', err)
+      setError(`Failed to load PDF: ${err.message}`)
+      return null
+    }
+  }, [session])
+
+  // Clean up blob URL when component unmounts or file changes
+  useEffect(() => {
+    return () => {
+      if (pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl)
+      }
+    }
+  }, [pdfBlobUrl])
+
+  // Fetch PDF when file changes
+  useEffect(() => {
+    if (file && file.url && session?.access_token) {
+      fetchPDFWithAuth(file.url, file.id)
+    }
+  }, [file, fetchPDFWithAuth, session])
 
   // Extract text when PDF loads
   const extractTextFromPDF = useCallback(async (fileId) => {
-    if (!fileId) return
+    if (!fileId || !session?.access_token) return
 
     try {
       setLoading(true)
       const response = await fetch('http://localhost:5000/api/extract-text', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({ fileId })
       })
@@ -38,7 +89,7 @@ const PDFViewer = ({ file }) => {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [session])
 
   useEffect(() => {
     if (file && file.id) {
@@ -210,7 +261,7 @@ const PDFViewer = ({ file }) => {
       <div className="flex-1 overflow-auto bg-gray-100">
         <div className="flex justify-center p-4">
           <Document
-            file={file.url || file}
+            file={pdfBlobUrl}
             onLoadSuccess={onDocumentLoadSuccess}
             onLoadError={onDocumentLoadError}
             loading={

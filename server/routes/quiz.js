@@ -12,6 +12,52 @@ const openai = new OpenAI({
 })
 
 /**
+ * Create a fallback quiz when AI response parsing fails
+ */
+function createFallbackQuiz(content, mcqCount, shortCount, longCount) {
+  console.log('Creating fallback quiz structure...');
+  
+  // Extract first few sentences for basic questions
+  const sentences = content.split('.').filter(s => s.trim().length > 20).slice(0, 10);
+  
+  const fallbackQuiz = {
+    mcq: [],
+    shortAnswer: [],
+    longAnswer: []
+  };
+  
+  // Generate basic MCQ questions
+  for (let i = 0; i < Math.min(mcqCount, sentences.length); i++) {
+    fallbackQuiz.mcq.push({
+      question: `Based on the content, which statement is most accurate about the topic discussed?`,
+      options: [
+        "The content discusses fundamental concepts",
+        "The content is not relevant to the subject",
+        "The content contains incorrect information",
+        "The content is too complex to understand"
+      ],
+      correctAnswerIndex: 0
+    });
+  }
+  
+  // Generate basic short answer questions
+  for (let i = 0; i < shortCount; i++) {
+    fallbackQuiz.shortAnswer.push({
+      question: `Briefly explain a key concept mentioned in the provided content.`
+    });
+  }
+  
+  // Generate basic long answer questions
+  for (let i = 0; i < longCount; i++) {
+    fallbackQuiz.longAnswer.push({
+      question: `Provide a detailed explanation of the main topic discussed in the content, including its significance and applications.`
+    });
+  }
+  
+  return fallbackQuiz;
+}
+
+/**
  * Generate quiz based on PDF content
  */
 router.post('/generate-quiz', async (req, res) => {
@@ -67,18 +113,20 @@ router.post('/generate-quiz', async (req, res) => {
     const longCount = quizTypes.longAnswer || 1
 
     const quizPrompt = `
+      You MUST respond with a valid JSON object only. Do not include any explanation, introduction, or additional text outside the JSON.
+      
       Generate a quiz based on the following content. The quiz should include:
       - ${mcqCount} multiple choice questions (MCQs) with 4 options each and one correct answer
       - ${shortCount} short answer questions that require brief explanations
       - ${longCount} long answer question that requires detailed response
       
-      Format your response as a valid JSON object with the following structure:
+      Your response must be a valid JSON object with this EXACT structure:
       {
         "mcq": [
           {
             "question": "The question text",
             "options": ["Option A", "Option B", "Option C", "Option D"],
-            "correctAnswerIndex": 0 // Index of the correct answer (0-3)
+            "correctAnswerIndex": 0
           }
         ],
         "shortAnswer": [
@@ -95,15 +143,20 @@ router.post('/generate-quiz', async (req, res) => {
 
       Content:
       ${content}
+      
+      Remember: Respond with ONLY the JSON object, no additional text.
     `
 
     const completion = await openai.chat.completions.create({
       model: config.chatModel || "Qwen/Qwen3-30B-A3B-Thinking-2507",
       messages: [
-        { role: 'system', content: 'You are a helpful AI that generates educational quizzes.' },
+        { 
+          role: 'system', 
+          content: 'You are a helpful AI that generates educational quizzes. You MUST respond with valid JSON only. Do not include any text outside the JSON structure.' 
+        },
         { role: 'user', content: quizPrompt }
       ],
-      temperature: 0.6,
+      temperature: 0.3, // Lower temperature for more consistent JSON format
       top_p: 0.95,
       max_tokens: 2000,
       response_format: { type: "json_object" }
@@ -116,7 +169,8 @@ router.post('/generate-quiz', async (req, res) => {
       
       // Debug what we've extracted
       console.log('Quiz generation - extracted content type:', typeof content);
-      console.log('Quiz content preview:', content ? content.substring(0, 100) : 'null');
+      console.log('Quiz content preview:', content ? content.substring(0, 200) + '...' : 'null');
+      console.log('Response format was JSON object:', completion.response_format?.type === 'json_object');
       
       if (!content) {
         throw new Error('Could not extract content from message object');
@@ -130,16 +184,23 @@ router.post('/generate-quiz', async (req, res) => {
         try {
           quizContent = JSON.parse(content.trim());
         } catch (jsonError) {
+          console.log('Initial JSON parse failed, trying to extract embedded JSON...');
+          
           // If it fails, try to extract JSON embedded in non-JSON text
           const jsonMatch = content.match(/(\{[\s\S]*"mcq"[\s\S]*\})/);
           if (jsonMatch) {
             try {
               quizContent = JSON.parse(jsonMatch[1]);
+              console.log('Successfully extracted embedded JSON');
             } catch (embeddedJsonError) {
-              throw new Error('Failed to parse embedded JSON: ' + embeddedJsonError.message);
+              console.error('Failed to parse embedded JSON:', embeddedJsonError.message);
+              // Create fallback quiz structure
+              quizContent = createFallbackQuiz(content, mcqCount, shortCount, longCount);
             }
           } else {
-            throw jsonError;
+            console.error('No JSON found in response, creating fallback quiz');
+            // Create fallback quiz structure
+            quizContent = createFallbackQuiz(content, mcqCount, shortCount, longCount);
           }
         }
       }

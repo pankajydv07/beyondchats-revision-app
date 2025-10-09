@@ -28,6 +28,7 @@ export function AuthProvider({ children }) {
         if (session) {
           setSession(session);
           setUser(session.user);
+          console.log('✅ Session found, user:', session.user.email);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
@@ -38,28 +39,15 @@ export function AuthProvider({ children }) {
     };
     
     initializeAuth();
-    
-    // Subscribe to auth changes
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
-    
-    // Cleanup subscription
-    return () => {
-      if (authListener && authListener.subscription) {
-        authListener.subscription.unsubscribe();
-      }
-    };
   }, []);
   
   // Function to register user with our backend
   const registerUserWithBackend = async (user, accessToken) => {
     try {
-      const response = await fetch('/api/auth/register-user', {
+      console.log('🔄 Registering user with backend:', user.email);
+      
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const response = await fetch(`${apiUrl}/api/auth/register-user`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -69,14 +57,16 @@ export function AuthProvider({ children }) {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to register user with backend');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to register user with backend');
       }
       
       const result = await response.json();
-      console.log('User registered with backend:', result);
+      console.log('✅ User registered with backend:', result);
       return result;
     } catch (error) {
-      console.error('Error registering user with backend:', error);
+      console.error('❌ Error registering user with backend:', error);
+      setError('Failed to register user. Please try refreshing the page.');
       return null;
     }
   };
@@ -85,13 +75,21 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('🔔 Auth state change:', event, session?.user?.email);
+        
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
         
         // If user just signed in, register them with our backend
         if (event === 'SIGNED_IN' && session?.user && session?.access_token) {
+          console.log('👤 User signed in, registering with backend...');
           await registerUserWithBackend(session.user, session.access_token);
+        }
+        
+        // Clear error when user signs out
+        if (event === 'SIGNED_OUT') {
+          setError(null);
         }
       }
     );

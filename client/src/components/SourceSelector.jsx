@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import { useAuth } from '../context/AuthContext'
+import PDFProcessingProgress from './PDFProcessingProgress'
 
 const SourceSelector = ({ onFileSelect }) => {
   const { user, session } = useAuth()
@@ -10,6 +11,9 @@ const SourceSelector = ({ onFileSelect }) => {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [processingStatus, setProcessingStatus] = useState('')
   const [error, setError] = useState('')
+  const [showProgressModal, setShowProgressModal] = useState(false)
+  const [currentUpload, setCurrentUpload] = useState(null)
+  const [processingInProgress, setProcessingInProgress] = useState(false)
 
   // Load uploaded PDFs from server
   const loadUploadedPDFs = useCallback(async () => {
@@ -95,14 +99,19 @@ const SourceSelector = ({ onFileSelect }) => {
         status: result.status
       }
 
-      onFileSelect(fileWithUrl)
-      setProcessingStatus('PDF uploaded successfully!')
+      // Set current upload info for progress modal
+      setCurrentUpload({
+        fileId: result.fileId,
+        fileName: file.name,
+        fileObject: fileWithUrl
+      })
+
+      // Show progress modal
+      setShowProgressModal(true)
+      setProcessingInProgress(true)
       
-      // Refresh the list after a short delay
-      setTimeout(() => {
-        loadUploadedPDFs()
-        setProcessingStatus('')
-      }, 2000)
+      // Don't select the file immediately - wait for processing to complete
+      // onFileSelect(fileWithUrl) - moved to handleProcessingComplete
 
     } catch (err) {
       console.error('Upload error:', err)
@@ -112,7 +121,39 @@ const SourceSelector = ({ onFileSelect }) => {
     } finally {
       setLoading(false)
     }
-  }, [onFileSelect, loadUploadedPDFs, user?.id, session?.access_token])
+  }, [onFileSelect, user?.id, session?.access_token])
+
+  const handleProcessingComplete = useCallback((statusInfo) => {
+    console.log('PDF processing completed:', statusInfo)
+    
+    // Now select the file since processing is complete
+    if (currentUpload?.fileObject) {
+      const updatedFileObject = {
+        ...currentUpload.fileObject,
+        status: 'completed',
+        isReady: true,
+        chunkCount: statusInfo.chunkCount
+      }
+      onFileSelect(updatedFileObject)
+    }
+    
+    // Mark processing as complete
+    setProcessingInProgress(false)
+    
+    // Refresh the PDFs list
+    loadUploadedPDFs()
+    // Keep the modal open until user closes it
+  }, [loadUploadedPDFs, currentUpload, onFileSelect])
+
+  const handleProgressModalClose = useCallback(() => {
+    // Only allow closing if processing is complete
+    if (!processingInProgress) {
+      setShowProgressModal(false)
+      setCurrentUpload(null)
+      setProcessingStatus('')
+      setUploadProgress(0)
+    }
+  }, [processingInProgress])
 
   const handleFileChange = useCallback((event) => {
     const file = event.target.files[0]
@@ -134,12 +175,15 @@ const SourceSelector = ({ onFileSelect }) => {
   }, [])
 
   const handleExistingPDFSelect = useCallback((pdf) => {
-    // Create a mock file object for existing PDFs
+    // Create a mock file object for existing PDFs with proper URL
     const fileObject = {
       id: pdf.id,
-      name: pdf.name,
-      url: `/api/pdf/${pdf.id}`, // Server endpoint to serve PDF
-      uploadedAt: pdf.uploadedAt
+      name: pdf.original_name || pdf.file_name,
+      url: `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/pdf/${pdf.id}`,
+      uploadedAt: pdf.created_at,
+      size: pdf.file_size,
+      totalPages: pdf.total_pages,
+      status: pdf.processing_status
     }
     onFileSelect(fileObject)
   }, [onFileSelect])
@@ -299,10 +343,10 @@ const SourceSelector = ({ onFileSelect }) => {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-gray-900 truncate">
-                          {pdf.name}
+                          {pdf.original_name || pdf.file_name}
                         </p>
                         <p className="text-xs text-gray-500">
-                          Uploaded: {new Date(pdf.uploadedAt).toLocaleDateString()}
+                          Uploaded: {new Date(pdf.created_at).toLocaleDateString()}
                         </p>
                       </div>
                     </div>
@@ -315,6 +359,16 @@ const SourceSelector = ({ onFileSelect }) => {
             )}
           </div>
         </div>
+      )}
+
+      {/* PDF Processing Progress Modal */}
+      {showProgressModal && currentUpload && (
+        <PDFProcessingProgress
+          fileId={currentUpload.fileId}
+          fileName={currentUpload.fileName}
+          onComplete={handleProcessingComplete}
+          onClose={handleProgressModalClose}
+        />
       )}
     </div>
   )

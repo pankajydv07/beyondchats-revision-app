@@ -94,7 +94,10 @@ export const authService = {
     if (!userId) return null;
     
     try {
-      const { data, error } = await supabase
+      // Use admin client to bypass RLS for user lookup
+      const client = supabaseAdmin || supabase;
+      
+      const { data, error } = await client
         .from('users')
         .select('*')
         .eq('id', userId)
@@ -121,16 +124,43 @@ export const authService = {
     if (!profile?.id) {
       return { success: false, error: 'No user ID provided' };
     }
-    
+
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .upsert([profile], { onConflict: 'id', returning: 'minimal' });
+      // For debugging: check if we have admin client
+      const hasAdminClient = !!supabaseAdmin;
+      console.log('🔧 Admin client available:', hasAdminClient);
       
+      // Use admin client to bypass RLS for user creation, fallback to regular client
+      const client = supabaseAdmin || supabase;
+      console.log('🔧 Using client type:', supabaseAdmin ? 'ADMIN' : 'REGULAR');
+      
+      // First try to insert with the exact Supabase Auth user ID
+      const { data, error } = await client
+        .from('users')
+        .upsert([{
+          id: profile.id, // Use the exact Supabase Auth user ID
+          email: profile.email,
+          full_name: profile.full_name,
+          avatar_url: profile.avatar_url,
+          updated_at: new Date().toISOString()
+        }], { 
+          onConflict: 'id',
+          ignoreDuplicates: false // Force update if exists
+        })
+        .select(); // Return the created/updated record
+
       if (error) {
+        console.error('Database error creating user profile:', error);
+        
+        // If RLS error and we're not using admin client, suggest the fix
+        if (error.code === '42501' && !supabaseAdmin) {
+          return { success: false, error: 'RLS policy blocking user creation. Need to configure SUPABASE_SERVICE_KEY or disable RLS on users table.' };
+        }
+        
         return { success: false, error: error.message };
       }
-      
+
+      console.log('✅ User profile created/updated successfully:', data);
       return { success: true, data };
     } catch (error) {
       console.error('Error in upsertUserProfile:', error);

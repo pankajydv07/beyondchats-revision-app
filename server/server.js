@@ -29,6 +29,8 @@ app.use('*', (req, res) => {
       embeddings: 'POST /api/create-embeddings',
       search: 'POST /api/search-chunks',
       users: 'POST /api/users, GET /api/users/:id, PUT /api/users/:id',
+      pdfs: 'GET /api/pdfs, GET /api/pdf/:fileId',
+      attempts: 'GET /api/attempts, POST /api/attempts, POST /api/attempts/save-attempt',
       health: 'GET /api/health'
     }
   })

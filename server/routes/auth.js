@@ -17,33 +17,55 @@ router.post('/google', async (req, res) => {
       return res.status(400).json({ error: 'Authorization code is required' });
     }
     
+    console.log('🔄 Processing Google OAuth code exchange...');
     const result = await authService.signInWithGoogle(code);
     
     if (!result.success) {
+      console.error('❌ Google auth failed:', result.error);
       return res.status(400).json({ error: result.error });
     }
+    
+    console.log('✅ Google auth successful, user ID:', result.user.id);
+    console.log('📧 User email:', result.user.email);
     
     // Get user profile or create one if it doesn't exist
     let userProfile = await authService.getUserProfile(result.user.id);
     
     if (!userProfile) {
+      console.log('👤 New user detected, creating profile...');
+      
       // Create basic profile for new users
       const newProfile = {
-        id: result.user.id,
+        id: result.user.id, // Use the exact Supabase Auth user ID
         email: result.user.email,
-        full_name: result.user.user_metadata?.full_name || result.user.email.split('@')[0],
-        avatar_url: result.user.user_metadata?.avatar_url || null
+        full_name: result.user.user_metadata?.full_name || 
+                   result.user.user_metadata?.name || 
+                   result.user.email.split('@')[0],
+        avatar_url: result.user.user_metadata?.avatar_url || 
+                    result.user.user_metadata?.picture || null
       };
       
-      await authService.upsertUserProfile(newProfile);
+      console.log('📝 Creating user profile:', newProfile);
+      const profileResult = await authService.upsertUserProfile(newProfile);
+      
+      if (!profileResult.success) {
+        console.error('❌ Failed to create user profile:', profileResult.error);
+        return res.status(500).json({ error: 'Failed to create user profile: ' + profileResult.error });
+      }
+      
+      console.log('✅ User profile created successfully');
+      userProfile = profileResult.data[0]; // Get the created profile
+    } else {
+      console.log('👤 Existing user found:', userProfile.email);
     }
     
     res.json({
       user: result.user,
-      session: result.session
+      session: result.session,
+      profile: userProfile
     });
   } catch (error) {
-    console.error('Google auth error:', error);
+    console.error('❌ Google auth error:', error);
     res.status(500).json({ error: 'Authentication failed' });
   }
 });
@@ -142,32 +164,42 @@ router.post('/register-user', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'User data is required' });
     }
     
+    console.log('🔄 Registering user:', user.id, user.email);
+    
     // Check if user already exists
     let userProfile = await authService.getUserProfile(user.id);
     
     if (!userProfile) {
+      console.log('👤 Creating new user profile...');
+      
       // Create user profile in our database
       const newProfile = {
-        id: user.id,
+        id: user.id, // Use exact Supabase Auth user ID
         email: user.email,
-        full_name: user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0],
-        avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null
+        full_name: user.user_metadata?.full_name || 
+                   user.user_metadata?.name || 
+                   user.email.split('@')[0],
+        avatar_url: user.user_metadata?.avatar_url || 
+                    user.user_metadata?.picture || null
       };
       
+      console.log('📝 Profile data:', newProfile);
       const result = await authService.upsertUserProfile(newProfile);
       
       if (!result.success) {
-        console.error('Error creating user profile:', result.error);
-        return res.status(500).json({ error: 'Failed to create user profile' });
+        console.error('❌ Error creating user profile:', result.error);
+        return res.status(500).json({ error: 'Failed to create user profile: ' + result.error });
       }
       
-      res.json({ success: true, created: true, user: newProfile });
+      console.log('✅ User profile created successfully');
+      res.json({ success: true, created: true, user: result.data[0] });
     } else {
+      console.log('👤 User profile already exists');
       res.json({ success: true, created: false, user: userProfile });
     }
   } catch (error) {
-    console.error('Register user error:', error);
-    res.status(500).json({ error: 'User registration failed' });
+    console.error('❌ Register user error:', error);
+    res.status(500).json({ error: 'User registration failed: ' + error.message });
   }
 });
 

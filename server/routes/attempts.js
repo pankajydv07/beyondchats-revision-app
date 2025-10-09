@@ -150,6 +150,8 @@ router.post('/', requireAuth, async (req, res) => {
  */
 router.post('/save-attempt', requireAuth, async (req, res) => {
   try {
+    console.log('Received save-attempt request with body:', req.body)
+    
     const {
       user_id,
       pdf_id,
@@ -162,6 +164,16 @@ router.post('/save-attempt', requireAuth, async (req, res) => {
       time_taken,
       feedback
     } = req.body
+
+    console.log('Extracted fields:', {
+      user_id,
+      pdf_id,
+      topic,
+      score,
+      total_questions,
+      correct_answers,
+      time_taken
+    })
 
     // Validate required fields
     if (!user_id || !topic || !questions || !answers || score === undefined) {
@@ -181,7 +193,9 @@ router.post('/save-attempt', requireAuth, async (req, res) => {
     }
 
     // Validate score is between 0 and 1
+    console.log('Validating score:', score, 'Type:', typeof score)
     if (score < 0 || score > 1) {
+      console.error('Score validation failed:', score)
       return res.status(400).json({
         success: false,
         error: 'Score must be between 0 and 1'
@@ -200,6 +214,8 @@ router.post('/save-attempt', requireAuth, async (req, res) => {
       time_taken: time_taken || null,
       feedback: feedback || null
     }
+
+    console.log('Prepared attempt data for database:', attemptData)
 
     const { data: attempt, error } = await supabase
       .from('quiz_attempts')

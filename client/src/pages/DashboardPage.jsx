@@ -79,29 +79,29 @@ function DashboardPage() {
       }
     }
 
-    // Calculate statistics
+    // Calculate statistics using the generated percentage field
     const totalQuizzes = attempts.length
-    const totalScore = attempts.reduce((sum, attempt) => sum + (attempt.score || 0), 0)
-    const averageScore = totalQuizzes > 0 ? Math.round((totalScore / totalQuizzes) * 100) / 100 : 0
+    const totalPercentage = attempts.reduce((sum, attempt) => sum + (parseFloat(attempt.percentage) || 0), 0)
+    const averageScore = totalQuizzes > 0 ? Math.round(totalPercentage / totalQuizzes) : 0
 
-    // Get recent attempts (last 10)
+    // Get recent attempts (last 10) - use created_at instead of completed_at
     const recentAttempts = attempts
-      .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       .slice(0, 10)
 
-    // Prepare chart data (last 30 days)
+    // Prepare chart data (last 30 days) - use created_at
     const chartData = attempts
       .filter(attempt => {
-        const attemptDate = new Date(attempt.completed_at)
+        const attemptDate = new Date(attempt.created_at)
         const thirtyDaysAgo = new Date()
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
         return attemptDate >= thirtyDaysAgo
       })
-      .sort((a, b) => new Date(a.completed_at) - new Date(b.completed_at))
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
       .map((attempt, index) => ({
         attempt: index + 1,
-        score: Math.round((attempt.score || 0) * 100),
-        date: new Date(attempt.completed_at).toLocaleDateString(),
+        score: Math.round(parseFloat(attempt.percentage) || 0),
+        date: new Date(attempt.created_at).toLocaleDateString(),
         topic: attempt.topic || 'General'
       }))
 
@@ -230,7 +230,7 @@ function DashboardPage() {
                 <div className="ml-5 w-0 flex-1">
                   <dl>
                     <dt className="text-sm font-medium text-gray-500 truncate">Average Score</dt>
-                    <dd className="text-lg font-medium text-gray-900">{Math.round(dashboardData.averageScore * 100)}%</dd>
+                    <dd className="text-lg font-medium text-gray-900">{Math.round(dashboardData.averageScore)}%</dd>
                   </dl>
                 </div>
               </div>
@@ -250,7 +250,7 @@ function DashboardPage() {
                     <dt className="text-sm font-medium text-gray-500 truncate">Best Score</dt>
                     <dd className="text-lg font-medium text-gray-900">
                       {dashboardData.attempts.length > 0 
-                        ? Math.round(Math.max(...dashboardData.attempts.map(a => a.score || 0)) * 100) + '%'
+                        ? Math.round(Math.max(...dashboardData.attempts.map(a => a.percentage || 0))) + '%'
                         : '0%'
                       }
                     </dd>
@@ -273,7 +273,7 @@ function DashboardPage() {
                     <dt className="text-sm font-medium text-gray-500 truncate">Recent Activity</dt>
                     <dd className="text-lg font-medium text-gray-900">
                       {dashboardData.recentAttempts.length > 0 
-                        ? new Date(dashboardData.recentAttempts[0].completed_at).toLocaleDateString()
+                        ? new Date(dashboardData.recentAttempts[0].created_at).toLocaleDateString()
                         : 'No activity'
                       }
                     </dd>
@@ -357,7 +357,7 @@ function DashboardPage() {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {dashboardData.recentAttempts.map((attempt, index) => {
-                      const scorePercentage = Math.round((attempt.score || 0) * 100)
+                      const scorePercentage = Math.round(attempt.percentage || 0)
                       const performanceColor = scorePercentage >= 80 ? 'text-green-600' : 
                                              scorePercentage >= 60 ? 'text-yellow-600' : 'text-red-600'
                       const performanceBg = scorePercentage >= 80 ? 'bg-green-100' : 
@@ -385,10 +385,10 @@ function DashboardPage() {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {attempt.total_questions || 'N/A'}
+                            {attempt.total || 'N/A'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {new Date(attempt.completed_at).toLocaleDateString()}
+                            {new Date(attempt.created_at).toLocaleDateString()}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${performanceBg} ${performanceColor}`}>

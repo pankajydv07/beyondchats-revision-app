@@ -297,7 +297,7 @@ router.get('/pdfs', requireAuth, async (req, res) => {
     // Fetch user's PDF files
     const { data: pdfs, error } = await supabase
       .from('pdf_files')
-      .select('id, file_name, original_name, file_size, processing_status, total_pages, created_at, processed_at')
+      .select('id, file_name, original_name, file_url, file_size, processing_status, total_pages, created_at, processed_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
 
@@ -316,6 +316,82 @@ router.get('/pdfs', requireAuth, async (req, res) => {
 
   } catch (error) {
     console.error('Get PDFs endpoint error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    })
+  }
+})
+
+/**
+ * Get PDF processing status
+ */
+router.get('/pdf/:fileId/status', requireAuth, async (req, res) => {
+  try {
+    const { fileId } = req.params
+
+    if (!fileId) {
+      return res.status(400).json({
+        success: false,
+        error: 'File ID is required'
+      })
+    }
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(fileId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid file ID format'
+      })
+    }
+
+    // Fetch PDF status
+    const { data: pdf, error } = await supabase
+      .from('pdf_files')
+      .select('id, file_name, processing_status, total_pages, created_at, processed_at')
+      .eq('id', fileId)
+      .single()
+
+    if (error) {
+      console.error('Database error:', error)
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch PDF status'
+      })
+    }
+
+    if (!pdf) {
+      return res.status(404).json({
+        success: false,
+        error: 'PDF not found'
+      })
+    }
+
+    // Also check if chunks exist for this PDF
+    const { count: chunkCount, error: chunksError } = await supabase
+      .from('pdf_chunks')
+      .select('*', { count: 'exact', head: true })
+      .eq('pdf_id', fileId)
+
+    const finalChunkCount = chunksError ? 0 : (chunkCount || 0)
+
+    res.json({
+      success: true,
+      status: {
+        id: pdf.id,
+        fileName: pdf.file_name,
+        processingStatus: pdf.processing_status,
+        totalPages: pdf.total_pages,
+        chunkCount: finalChunkCount,
+        createdAt: pdf.created_at,
+        processedAt: pdf.processed_at,
+        isReady: pdf.processing_status === 'completed' && finalChunkCount > 0
+      }
+    })
+
+  } catch (error) {
+    console.error('Get PDF status endpoint error:', error)
     res.status(500).json({
       success: false,
       error: 'Internal server error'
@@ -499,6 +575,73 @@ router.get('/list-pdfs', async (req, res) => {
   } catch (error) {
     console.error('PDF list error:', error)
     res.status(500).json({ error: 'Failed to get PDF list' })
+  }
+})
+
+/**
+ * Serve PDF file from Supabase storage
+ */
+router.get('/pdf/:fileId', requireAuth, async (req, res) => {
+  try {
+    const { fileId } = req.params
+    const userId = req.user.id
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(fileId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid file ID format'
+      })
+    }
+
+    // Get PDF file info from database
+    const { data: pdfFile, error: dbError } = await supabase
+      .from('pdf_files')
+      .select('id, file_name, file_url, user_id')
+      .eq('id', fileId)
+      .eq('user_id', userId) // Ensure user can only access their own files
+      .single()
+
+    if (dbError || !pdfFile) {
+      console.error('PDF file not found:', dbError)
+      return res.status(404).json({
+        success: false,
+        error: 'PDF file not found'
+      })
+    }
+
+    // Download file from Supabase storage
+    const { data: fileData, error: storageError } = await supabase.storage
+      .from('pdfs')
+      .download(pdfFile.file_url)
+
+    if (storageError || !fileData) {
+      console.error('Error downloading PDF from storage:', storageError)
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve PDF file'
+      })
+    }
+
+    // Convert blob to buffer
+    const buffer = Buffer.from(await fileData.arrayBuffer())
+
+    // Set appropriate headers
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `inline; filename="${pdfFile.file_name}"`)
+    res.setHeader('Content-Length', buffer.length)
+    res.setHeader('Cache-Control', 'public, max-age=3600') // Cache for 1 hour
+
+    // Send the PDF file
+    res.send(buffer)
+
+  } catch (error) {
+    console.error('Serve PDF endpoint error:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    })
   }
 })
 

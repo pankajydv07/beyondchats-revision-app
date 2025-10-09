@@ -24,7 +24,8 @@ function ProfilePage() {
         setLoading(true)
         setError(null)
 
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/users/${user.id}`, {
+        // Use the auth profile endpoint instead of direct users endpoint
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/profile`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${session?.access_token}`,
@@ -34,7 +35,7 @@ function ProfilePage() {
 
         if (response.ok) {
           const data = await response.json()
-          const userData = data.user
+          const userData = data.profile
           
           const userFormData = {
             full_name: userData.full_name || '',
@@ -45,11 +46,12 @@ function ProfilePage() {
           setFormData(userFormData)
           setOriginalData(userFormData)
         } else if (response.status === 404) {
-          // User doesn't exist in our database, create with default data
+          // User doesn't exist in our database, use auth data as default
+          console.log('👤 User profile not found, using auth data as fallback')
           const defaultData = {
-            full_name: user.user_metadata?.full_name || '',
+            full_name: user.user_metadata?.full_name || user.user_metadata?.name || '',
             email: user.email || '',
-            avatar_url: user.user_metadata?.avatar_url || ''
+            avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || ''
           }
           setFormData(defaultData)
           setOriginalData(defaultData)
@@ -62,9 +64,9 @@ function ProfilePage() {
         
         // Fallback to auth data
         const fallbackData = {
-          full_name: user.user_metadata?.full_name || '',
+          full_name: user.user_metadata?.full_name || user.user_metadata?.name || '',
           email: user.email || '',
-          avatar_url: user.user_metadata?.avatar_url || ''
+          avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || ''
         }
         setFormData(fallbackData)
         setOriginalData(fallbackData)
@@ -114,7 +116,8 @@ function ProfilePage() {
         return
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/users/${user.id}`, {
+      // Use the auth profile endpoint for updates
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/profile`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${session?.access_token}`,
@@ -124,56 +127,19 @@ function ProfilePage() {
       })
 
       if (response.ok) {
-        const data = await response.json()
-        const updatedUser = data.user
-        
-        const newFormData = {
-          full_name: updatedUser.full_name || '',
-          email: updatedUser.email || formData.email,
-          avatar_url: updatedUser.avatar_url || ''
+        // Profile updated successfully
+        const updatedFormData = {
+          ...formData,
+          ...updateData
         }
         
-        setFormData(newFormData)
-        setOriginalData(newFormData)
+        setFormData(updatedFormData)
+        setOriginalData(updatedFormData)
         setIsEditing(false)
         setSuccessMessage('Profile updated successfully!')
         
         // Clear success message after 3 seconds
         setTimeout(() => setSuccessMessage(''), 3000)
-      } else if (response.status === 404) {
-        // User doesn't exist, create new user
-        const createResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/users`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session?.access_token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            email: formData.email,
-            full_name: formData.full_name,
-            avatar_url: formData.avatar_url
-          })
-        })
-
-        if (createResponse.ok) {
-          const createData = await createResponse.json()
-          const newUser = createData.user
-          
-          const newFormData = {
-            full_name: newUser.full_name || '',
-            email: newUser.email || '',
-            avatar_url: newUser.avatar_url || ''
-          }
-          
-          setFormData(newFormData)
-          setOriginalData(newFormData)
-          setIsEditing(false)
-          setSuccessMessage('Profile created successfully!')
-          
-          setTimeout(() => setSuccessMessage(''), 3000)
-        } else {
-          throw new Error('Failed to create user profile')
-        }
       } else {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || 'Failed to update profile')
