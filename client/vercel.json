@@ -3,8 +3,6 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
-    { "source": "/auth/callback", "destination": "/index.html" },
-    { "source": "/auth/:path*", "destination": "/index.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
@@ -34,17 +32,5 @@
         }
       ]
     }
-  ],
-  "routes": [
-    { "src": "/auth/callback", "dest": "/index.html", "status": 200 },
-    { "src": "/auth/(.*)", "dest": "/index.html", "status": 200 },
-    {
-      "src": "/assets/(.*)",
-      "headers": {
-        "cache-control": "public, max-age=31536000, immutable"
-      }
-    },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
