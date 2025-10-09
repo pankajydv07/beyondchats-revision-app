@@ -112,40 +112,54 @@ router.post('/generate-quiz', async (req, res) => {
     const shortCount = quizTypes.shortAnswer || 2
     const longCount = quizTypes.longAnswer || 1
 
-    const quizPrompt = `
-      You MUST respond with a valid JSON object only. Do not include any explanation, introduction, or additional text outside the JSON.
-      
-      Generate a quiz based on the following content. The quiz should include:
-      - ${mcqCount} multiple choice questions (MCQs) with 4 options each and one correct answer
-      - ${shortCount} short answer questions that require brief explanations
-      - ${longCount} long answer question that requires detailed response
-      
-      Your response must be a valid JSON object with this EXACT structure:
-      {
-        "mcq": [
-          {
-            "question": "The question text",
-            "options": ["Option A", "Option B", "Option C", "Option D"],
-            "correctAnswerIndex": 0
-          }
-        ],
-        "shortAnswer": [
-          {
-            "question": "Short answer question text"
-          }
-        ],
-        "longAnswer": [
-          {
-            "question": "Long answer question text"
-          }
-        ]
-      }
+   const quizPrompt = `
+You are an expert educational content generator. Based ONLY on the provided content, create a well-balanced quiz that assesses conceptual understanding, not just recall.
 
-      Content:
-      ${content}
-      
-      Remember: Respond with ONLY the JSON object, no additional text.
-    `
+✅ Requirements:
+1. Include exactly:
+   - ${mcqCount} multiple-choice questions (MCQs), each with 4 options and exactly ONE correct answer.
+   - ${shortCount} short-answer questions requiring 2–4 sentence explanations.
+   - ${longCount} long-answer question requiring a detailed conceptual analysis.
+
+2. The MCQs should:
+   - Mix conceptual, factual, and applied questions.
+   - Use realistic, challenging distractors (avoid obvious or identical ones).
+   - Clearly indicate the correct option via its index (0–3).
+   - Avoid repetition of question stems.
+
+3. The short and long answer questions should:
+   - Encourage critical thinking and real-world application.
+   - Avoid rephrasing the same ideas.
+
+4. Your output MUST be **valid JSON**, with NO text outside the object.
+   - Use this exact structure:
+
+{
+  "mcq": [
+    {
+      "question": "Question text",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correctAnswerIndex": 0
+    }
+  ],
+  "shortAnswer": [
+    { "question": "Question text" }
+  ],
+  "longAnswer": [
+    { "question": "Question text" }
+  ]
+}
+
+5. Do not include explanations, markdown, or code fences.
+6. If a topic seems ambiguous, prioritize conceptual comprehension.
+
+📘 Content for quiz creation:
+${content}
+
+Now, generate the JSON object described above. Remember:
+⚠️ Respond ONLY with JSON — no extra text, explanations, or commentary.
+`;
+
 
     const completion = await openai.chat.completions.create({
       model: config.chatModel || "Qwen/Qwen3-30B-A3B-Thinking-2507",
@@ -158,7 +172,7 @@ router.post('/generate-quiz', async (req, res) => {
       ],
       temperature: 0.3, // Lower temperature for more consistent JSON format
       top_p: 0.95,
-      max_tokens: 2000,
+      max_tokens: 4000,
       response_format: { type: "json_object" }
     })
 
@@ -167,9 +181,7 @@ router.post('/generate-quiz', async (req, res) => {
     try {
       const content = extractContentFromNebiusResponse(completion);
       
-      // Debug what we've extracted
-      console.log('Quiz generation - extracted content type:', typeof content);
-      console.log('Quiz content preview:', content ? content.substring(0, 200) + '...' : 'null');
+
       console.log('Response format was JSON object:', completion.response_format?.type === 'json_object');
       
       if (!content) {
@@ -451,21 +463,44 @@ async function analyzeTextAnswer(question, answer, type) {
   }
   
   const prompt = `
-    You are grading a ${type} answer question. 
-    
-    Question: "${question}"
-    
-    Student's Answer: "${answer}"
-    
-    Grade this answer on a scale of 0-${maxScore} where ${maxScore} is perfect.
-    Provide constructive feedback explaining what was good and what could be improved.
-    
-    Format your response as a valid JSON object with the following structure:
-    {
-      "score": 7, // A number between 0 and ${maxScore}
-      "feedback": "Your detailed feedback here..."
-    }
-  `
+You are a professional educational evaluator assessing a student's ${type} answer.
+
+🧠 **Your goals:**
+- Grade the answer *fairly and objectively* based on accuracy, completeness, clarity, and relevance.
+- Be constructive — focus on how the student can improve conceptually.
+- Avoid generic praise like "Good job" without explanation.
+
+---
+
+**Question:**
+${question}
+
+**Student's Answer:**
+${answer}
+
+---
+
+🎯 **Your task:**
+1. Assign a score from 0 to ${maxScore}, where:
+   - 0 = completely incorrect or irrelevant
+   - ${maxScore} = perfect, well-structured, and accurate
+   - Partial credit is allowed for partially correct or incomplete answers
+
+2. Write detailed, constructive feedback covering:
+   - What the student did well (conceptual accuracy, clarity, examples)
+   - What could be improved (missed ideas, misconceptions, structure)
+   - Use plain, encouraging language.
+
+---
+
+📦 **Output Format:**
+Respond ONLY with a valid JSON object — no extra text, code fences, or commentary.
+
+{
+  "score": 0-(${maxScore}),
+  "feedback": "Detailed, constructive comments explaining strengths and improvements."
+}
+`
 
   try {
     // Use the recommended format from the example for Nebius AI
