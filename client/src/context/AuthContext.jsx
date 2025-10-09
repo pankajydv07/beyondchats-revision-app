@@ -105,16 +105,27 @@ export function AuthProvider({ children }) {
   // Sign in with Google
   const signInWithGoogle = async () => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      console.log('Initiating Google sign in');
+      const redirectUrl = `${window.location.origin}/auth/callback`;
+      console.log('Using redirect URL:', redirectUrl);
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
         },
       });
       
       if (error) {
+        console.error('Error during OAuth initiation:', error);
         throw error;
       }
+      
+      console.log('OAuth flow initiated successfully', data);
     } catch (error) {
       console.error('Google sign in error:', error);
       setError(error.message);
