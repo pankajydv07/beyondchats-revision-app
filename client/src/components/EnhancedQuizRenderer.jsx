@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import { getApiUrl, API_ENDPOINTS } from '../utils/api'
 
-const QuizRenderer = ({ quiz, onComplete }) => {
+const QuizRenderer = ({ quiz, onComplete, onGenerateNewQuiz }) => {
   const [mcqAnswers, setMcqAnswers] = useState({})
   const [shortAnswers, setShortAnswers] = useState({})
   const [longAnswers, setLongAnswers] = useState({})
@@ -423,12 +423,20 @@ const QuizRenderer = ({ quiz, onComplete }) => {
             <p className="text-center text-gray-700">
               Your quiz results have been saved to track your progress.
             </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
-            >
-              Continue Learning
-            </button>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => window.location.reload()}
+                className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+              >
+                Continue Learning
+              </button>
+              <button
+                onClick={onGenerateNewQuiz}
+                className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                Generate New Quiz
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -449,7 +457,8 @@ QuizRenderer.propTypes = {
       question: PropTypes.string.isRequired
     })).isRequired
   }),
-  onComplete: PropTypes.func
+  onComplete: PropTypes.func,
+  onGenerateNewQuiz: PropTypes.func
 }
 
 export default QuizRenderer

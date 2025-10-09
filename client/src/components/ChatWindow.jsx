@@ -73,6 +73,12 @@ const ChatWindow = ({
     }
   }
 
+  const handleGenerateNewQuiz = async () => {
+    // Reset quiz state and generate a new quiz
+    setQuiz(null)
+    await generateQuiz()
+  }
+
   const EmptyState = () => (
     <div className="flex-1 flex items-center justify-center p-8">
       <div className="text-center max-w-md">
@@ -263,7 +269,8 @@ const ChatWindow = ({
           ) : (
             <EnhancedQuizRenderer 
               quiz={quiz} 
-              onComplete={handleQuizSubmit} 
+              onComplete={handleQuizSubmit}
+              onGenerateNewQuiz={handleGenerateNewQuiz}
             />
           )}
         </div>
