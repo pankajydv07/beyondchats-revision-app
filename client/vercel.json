@@ -11,6 +11,15 @@
       "continue": true
     },
     {
+      "src": "/(.*)",
+      "headers": {
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "1; mode=block"
+      },
+      "continue": true
+    },
+    {
       "handle": "filesystem"
     },
     {
@@ -22,25 +31,6 @@
       "src": "/(.*)",
       "dest": "/index.html",
       "status": 200
-    }
-  ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
-          "key": "X-XSS-Protection",
-          "value": "1; mode=block"
-        }
-      ]
     }
   ]
 }
