@@ -89,7 +89,7 @@ const Sidebar = ({
 
       {/* Sidebar Container */}
       <div 
-        className={`sidebar-container fixed lg:relative inset-y-0 left-0 z-50 w-80 bg-white border-r border-gray-200 shadow-xl lg:shadow-none transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+        className={`sidebar-container sidebar-gradient fixed lg:relative inset-y-0 left-0 z-50 w-80 border-r border-gray-200 shadow-xl lg:shadow-none transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         } flex flex-col h-full overflow-hidden`}
       >

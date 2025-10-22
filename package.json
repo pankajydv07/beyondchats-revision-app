@@ -1,0 +1,26 @@
+{
+  "name": "beyondchats-revision-app",
+  "version": "1.0.0",
+  "description": "BeyondChats - AI-powered learning assistant with PDF chat and quiz generation",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
+    "dev:client": "cd client && npm run dev",
+    "dev:server": "cd server && npm run dev",
+    "install:all": "npm install && cd client && npm install && cd ../server && npm install",
+    "build:client": "cd client && npm run build",
+    "start:server": "cd server && npm start"
+  },
+  "keywords": [
+    "education",
+    "ai",
+    "chat",
+    "pdf",
+    "learning"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
