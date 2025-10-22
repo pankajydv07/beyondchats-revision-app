@@ -38,20 +38,15 @@ const ChatInput = ({ onSendMessage, onUploadFile, placeholder = 'Type your quest
   return (
     <div className="w-full">
       <div className="flex items-center space-x-3">
-        <label className="upload-icon" title="Upload PDF">
-          <input
-            type="file"
-            accept="application/pdf"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files && e.target.files[0]
-              if (f && onUploadFile) onUploadFile(f)
-            }}
-          />
+        <button 
+          className="upload-icon" 
+          title="Upload PDF"
+          onClick={() => onUploadFile && onUploadFile()}
+        >
           <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12v8M8 8l4-4 4 4M12 4v8" />
           </svg>
-        </label>
+        </button>
 
         <div className="chat-input-container">
           <textarea

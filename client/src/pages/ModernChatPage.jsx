@@ -763,6 +763,7 @@ function ModernChatPage() {
               onQuizSubmit={handleQuizSubmit}
               isSidebarOpen={isDesktopSidebarOpen}
               onToggleSidebar={() => setIsDesktopSidebarOpen(!isDesktopSidebarOpen)}
+              onUploadPDF={() => setShowUploadModal(true)}
             />
           </div>
         </div>

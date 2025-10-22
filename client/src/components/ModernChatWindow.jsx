@@ -14,7 +14,8 @@ const ChatWindow = ({
   selectedPDF = null,
   disabled = false,
   isSidebarOpen = false,
-  onToggleSidebar = null
+  onToggleSidebar = null,
+  onUploadPDF = null
 }) => {
   const messagesEndRef = useRef(null)
   const messagesContainerRef = useRef(null)
@@ -323,6 +324,7 @@ const ChatWindow = ({
                 placeholder="Ask a question about your course materials..."
                 disabled={disabled || isTyping}
                 isTyping={isTyping}
+                onUploadFile={onUploadPDF}
               />
             </div>
             
@@ -438,7 +440,8 @@ ChatWindow.propTypes = {
   }),
   disabled: PropTypes.bool,
   isSidebarOpen: PropTypes.bool,
-  onToggleSidebar: PropTypes.func
+  onToggleSidebar: PropTypes.func,
+  onUploadPDF: PropTypes.func
 }
 
 export default ChatWindow
