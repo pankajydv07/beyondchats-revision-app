@@ -53,6 +53,19 @@ function ModernChatPage() {
   const [isPDFViewerOpen, setIsPDFViewerOpen] = useState(false)
   const [viewMode, setViewMode] = useState('chat') // 'chat', 'pdf', 'both'
   
+  // Desktop sidebar toggle state - hidden by default
+  const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(() => {
+    // Clear old value and start fresh
+    localStorage.removeItem('desktopSidebarOpen')
+    return false
+  })
+  
+  // Save desktop sidebar state
+  useEffect(() => {
+    localStorage.setItem('desktopSidebarOpen', JSON.stringify(isDesktopSidebarOpen))
+    console.log('Desktop sidebar state:', isDesktopSidebarOpen)
+  }, [isDesktopSidebarOpen])
+  
   // Track if initial data has been loaded to prevent localStorage overwrites
   const [isInitialDataLoaded, setIsInitialDataLoaded] = useState(false)
   
@@ -684,25 +697,29 @@ function ModernChatPage() {
         </div>
       </div>
 
-      {/* Sidebar - Desktop: Fixed width, Mobile: Overlay */}
-      <div className="hidden lg:block lg:w-80 lg:flex-shrink-0">
-        <ModernSidebar
-          chats={storedData.chats}
-          pdfs={storedData.pdfs}
-          quizzes={storedData.quizzes}
-          activeTab={activeTab}
-          currentChatId={currentChatId}
-          selectedPDF={selectedPDF}
-          onTabChange={setActiveTab}
-          onChatSelect={selectChat}
-          onNewChat={createNewChat}
-          onDeleteChat={deleteChat}
-          onPDFSelect={selectPDF}
-          onUploadPDF={() => setShowUploadModal(true)}
-          onPDFDelete={deletePDF}
-          isOpen={true}
-          onClose={() => {}}
-        />
+      {/* Sidebar - Desktop: Collapsible, Mobile: Overlay */}
+      <div className={`hidden lg:block lg:flex-shrink-0 transition-all duration-300 ${
+        isDesktopSidebarOpen ? 'lg:w-80' : 'lg:w-0'
+      } overflow-hidden`}>
+        {isDesktopSidebarOpen && (
+          <ModernSidebar
+            chats={storedData.chats}
+            pdfs={storedData.pdfs}
+            quizzes={storedData.quizzes}
+            activeTab={activeTab}
+            currentChatId={currentChatId}
+            selectedPDF={selectedPDF}
+            onTabChange={setActiveTab}
+            onChatSelect={selectChat}
+            onNewChat={createNewChat}
+            onDeleteChat={deleteChat}
+            onPDFSelect={selectPDF}
+            onUploadPDF={() => setShowUploadModal(true)}
+            onPDFDelete={deletePDF}
+            isOpen={true}
+            onClose={() => {}}
+          />
+        )}
       </div>
 
       {/* Mobile Sidebar Overlay */}
@@ -744,6 +761,9 @@ function ModernChatPage() {
               selectedPDF={selectedPDF}
               onSendMessage={sendMessage}
               onQuizSubmit={handleQuizSubmit}
+              isSidebarOpen={isDesktopSidebarOpen}
+              onToggleSidebar={() => setIsDesktopSidebarOpen(!isDesktopSidebarOpen)}
+              onUploadPDF={() => setShowUploadModal(true)}
             />
           </div>
         </div>

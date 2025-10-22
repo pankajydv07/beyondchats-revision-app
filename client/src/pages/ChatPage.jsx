@@ -42,6 +42,19 @@ function ChatPage() {
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const [loadingChats, setLoadingChats] = useState(false)
+  
+  // Sidebar toggle state with localStorage persistence
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    // Force reset to false for now
+    localStorage.removeItem('sidebarOpen')
+    return false
+  })
+
+  // Save sidebar state to localStorage
+  useEffect(() => {
+    localStorage.setItem('sidebarOpen', JSON.stringify(isSidebarOpen))
+    console.log('Sidebar state:', isSidebarOpen)
+  }, [isSidebarOpen])
 
   // Load chat history from database
   const loadChatHistory = useCallback(async () => {
@@ -604,24 +617,57 @@ function ChatPage() {
     : null
 
   return (
-    <div className="flex h-full bg-gray-50">
-      {/* Left Sidebar */}
-      <div className="w-80 bg-white border-r border-gray-200 flex flex-col shadow-sm">
-        <Sidebar
-          chats={storedData.chats}
-          pdfs={storedData.pdfs}
-          quizzes={storedData.quizzes}
-          activeTab={activeTab}
-          currentChatId={currentChatId}
-          selectedPDF={selectedPDF}
-          onTabChange={setActiveTab}
-          onChatSelect={selectChat}
-          onNewChat={createNewChat}
-          onDeleteChat={deleteChat}
-          onPDFSelect={selectPDF}
-          onUploadPDF={() => setShowUploadModal(true)}
-          onPDFDelete={deletePDF}
-        />
+    <div className="flex h-full bg-gray-50 relative">
+      {/* Toggle Button - Always Visible - FORCED */}
+      <button
+        onClick={() => {
+          console.log('Button clicked! Current state:', isSidebarOpen)
+          setIsSidebarOpen(!isSidebarOpen)
+        }}
+        className={`fixed z-[100] bg-blue-600 hover:bg-blue-700 text-white rounded-full p-3 shadow-xl hover:shadow-2xl transition-all duration-300 group`}
+        style={{
+          top: '80px',
+          left: isSidebarOpen ? '304px' : '16px',
+          display: 'block',
+          position: 'fixed'
+        }}
+        title={isSidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+      >
+        {isSidebarOpen ? (
+          <svg className="w-6 h-6 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+          </svg>
+        ) : (
+          <svg className="w-6 h-6 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        )}
+      </button>
+
+      {/* Left Sidebar - Collapsible */}
+      <div 
+        className={`bg-white border-r border-gray-200 flex-shrink-0 transition-all duration-300 ease-in-out ${
+          isSidebarOpen ? 'w-80 opacity-100' : 'w-0 opacity-0'
+        } overflow-hidden`}
+        style={{ minWidth: isSidebarOpen ? '320px' : '0' }}
+      >
+        {isSidebarOpen && (
+          <Sidebar
+            chats={storedData.chats}
+            pdfs={storedData.pdfs}
+            quizzes={storedData.quizzes}
+            activeTab={activeTab}
+            currentChatId={currentChatId}
+            selectedPDF={selectedPDF}
+            onTabChange={setActiveTab}
+            onChatSelect={selectChat}
+            onNewChat={createNewChat}
+            onDeleteChat={deleteChat}
+            onPDFSelect={selectPDF}
+            onUploadPDF={() => setShowUploadModal(true)}
+            onPDFDelete={deletePDF}
+          />
+        )}
       </div>
 
       {/* Center Chat Window */}

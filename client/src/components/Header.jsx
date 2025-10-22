@@ -7,6 +7,7 @@ function Header() {
   const location = useLocation()
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isScrolled, setIsScrolled] = useState(false)
   const userMenuRef = useRef(null)
 
   const navigation = [
@@ -44,8 +45,24 @@ function Header() {
     }
   }, [])
 
+  // Detect scroll for header shadow
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 10) {
+        setIsScrolled(true)
+      } else {
+        setIsScrolled(false)
+      }
+    }
+
+    window.addEventListener('scroll', handleScroll)
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+    }
+  }, [])
+
   return (
-    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm shadow-sm border-b border-gray-200">
+    <header className={`header-sticky ${isScrolled ? 'scrolled' : ''}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo and Brand */}
@@ -69,11 +86,7 @@ function Header() {
                 <Link
                   key={item.name}
                   to={item.href}
-                  className={`inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    active
-                      ? 'bg-blue-50 text-blue-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                  }`}
+                  className={`nav-link ${active ? 'active' : ''}`}
                 >
                   <Icon className="w-4 h-4 mr-2" />
                   {item.name}
